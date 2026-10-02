@@ -1,9 +1,10 @@
 import "server-only";
-import { db, fotoUrl } from "./supabase";
+import { db, fotoUrl, partnerUrl } from "./supabase";
 import { inhaltText, type Einheit } from "./format";
 import type { StockedProduct } from "./pricing";
 
 export type Location = { id: string; slug: string; name: string; typ: string; ort: string | null };
+export type Partner = { logo: string | null; bild: string | null; text: string | null; link: string | null };
 
 export type ShopProduct = StockedProduct & {
   zusatz: string | null;
@@ -23,15 +24,17 @@ type Row = {
 };
 
 /** Aktive Verkaufsstelle samt aktiven Produkten und Bestand, frisch aus der Datenbank. */
-export async function loadShop(slug: string): Promise<{ location: Location; products: ShopProduct[] } | null> {
-  const { data: location, error: locError } = await db()
+export async function loadShop(slug: string): Promise<{ location: Location; partner: Partner; products: ShopProduct[] } | null> {
+  const { data: loc, error: locError } = await db()
     .from("locations")
-    .select("id, slug, name, typ, ort")
+    .select("id, slug, name, typ, ort, logo_path, werbung_bild, werbung_text, werbung_link")
     .eq("slug", slug)
     .eq("active", true)
-    .maybeSingle<Location>();
+    .maybeSingle<Location & { logo_path: string | null; werbung_bild: string | null; werbung_text: string | null; werbung_link: string | null }>();
   if (locError) throw locError;
-  if (!location) return null;
+  if (!loc) return null;
+  const location: Location = { id: loc.id, slug: loc.slug, name: loc.name, typ: loc.typ, ort: loc.ort };
+  const partner: Partner = { logo: partnerUrl(loc.logo_path), bild: partnerUrl(loc.werbung_bild), text: loc.werbung_text, link: loc.werbung_link };
 
   const { data, error } = await db()
     .from("location_products")
@@ -57,5 +60,5 @@ export async function loadShop(slug: string): Promise<{ location: Location; prod
       foto: fotoUrl(p.foto_path),
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
-  return { location, products };
+  return { location, partner, products };
 }

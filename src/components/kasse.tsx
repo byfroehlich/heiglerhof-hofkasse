@@ -4,13 +4,33 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { eur, grundpreisText, inhaltText, alkoholText } from "@/lib/format";
-import type { Location, ShopProduct } from "@/lib/shop";
+import type { Location, Partner, ShopProduct } from "@/lib/shop";
 import type { Receipt } from "@/lib/checkout";
 
-type Props = { location: Location; products: ShopProduct[]; paypalClientId: string };
+type Props = { location: Location; partner: Partner; products: ShopProduct[]; paypalClientId: string };
 type Step = "list" | "sum" | "done";
 
-function Head({ title, sub, onBack }: { title: string; sub: string; onBack?: () => void }) {
+function Werbung({ p, name }: { p: Partner; name: string }) {
+  if (!p.bild && !p.text) return null;
+  const inhalt = (
+    <>
+      {p.bild && (
+        // eslint-disable-next-line @next/next/no-img-element -- Partnerbild aus dem Storage, schon verkleinert
+        <img src={p.bild} alt={`Werbung ${name}`} className="w-full rounded-lg object-cover" loading="lazy" />
+      )}
+      {p.text && <p className="mt-2 whitespace-pre-line font-txt leading-relaxed">{p.text}</p>}
+      {p.link && <span className="mt-1 inline-block text-or-d underline">Mehr erfahren</span>}
+    </>
+  );
+  return (
+    <aside className="mt-6 rounded-xl border border-line p-3 text-left" aria-label={`Tipp von ${name}`}>
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-mut">Tipp von {name}</div>
+      {p.link ? <a href={p.link} target="_blank" rel="noopener noreferrer sponsored" className="block">{inhalt}</a> : inhalt}
+    </aside>
+  );
+}
+
+function Head({ title, sub, onBack, logo }: { title: string; sub: string; onBack?: () => void; logo?: string | null }) {
   return (
     <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-line bg-paper px-4 py-3 md:px-10" style={{ paddingTop: "max(.75rem, env(safe-area-inset-top))" }}>
       {onBack && <button onClick={onBack} aria-label="Zurück" className="grid h-9 w-9 place-items-center rounded-full bg-cream text-2xl">‹</button>}
@@ -19,11 +39,15 @@ function Head({ title, sub, onBack }: { title: string; sub: string; onBack?: () 
         <div className="font-brush text-[34px] leading-none text-or md:text-5xl">{title}</div>
         <div className="truncate text-sm text-mut">{sub}</div>
       </div>
+      {logo && (
+        // eslint-disable-next-line @next/next/no-img-element -- Partnerlogo aus dem Storage, schon verkleinert
+        <img src={logo} alt="Logo unseres Partners" className="ml-auto h-12 max-w-28 flex-none object-contain md:h-16 md:max-w-40" />
+      )}
     </header>
   );
 }
 
-export function Kasse({ location, products, paypalClientId }: Props) {
+export function Kasse({ location, partner, products, paypalClientId }: Props) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [step, setStep] = useState<Step>("list");
   const [age, setAge] = useState(false);
@@ -89,6 +113,7 @@ export function Kasse({ location, products, paypalClientId }: Props) {
           <a className="btn btn-or mt-3 w-full" href="https://www.google.com/maps/search/?api=1&query=Wank+6,+87484+Nesselwang" target="_blank" rel="noopener noreferrer">Weg zum Hof</a>
         </div>
         <button className="btn btn-ghost mt-3 w-full" onClick={() => { setStep("list"); setDone(null); setAge(false); }}>Noch etwas nehmen</button>
+        <Werbung p={partner} name={location.name} />
       </main>
     );
   }
@@ -146,7 +171,7 @@ export function Kasse({ location, products, paypalClientId }: Props) {
 
   return (
     <>
-      <Head title="Griaß Gott!" sub="Probierprodukte vom Heiglerhof" />
+      <Head title="Griaß Gott!" sub="Probierprodukte vom Heiglerhof" logo={partner.logo} />
       <main className="mx-auto grid w-full max-w-6xl gap-8 px-4 pb-40 pt-3 md:grid-cols-[minmax(0,1fr)_340px] md:px-10 md:pb-12">
         <div className="min-w-0">
           <div className="flex items-center justify-between rounded-xl bg-cream px-3 py-2">
@@ -189,6 +214,8 @@ export function Kasse({ location, products, paypalClientId }: Props) {
               );
             })}
           </ul>
+          <Werbung p={partner} name={location.name} />
+          <a href="/karte" className="mt-6 block text-center text-or-d underline">Wo es uns sonst noch gibt</a>
         </div>
         <aside className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-paper p-4 md:sticky md:top-24 md:self-start md:rounded-2xl md:border" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
           {hasAlc && <p className="mb-2 text-sm text-mut">Liköre geben wir nur an Erwachsene ab 18 ab.</p>}

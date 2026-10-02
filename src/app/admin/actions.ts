@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import sharp from "sharp";
 import { requireAdmin } from "@/lib/auth";
 import { authClient, db } from "@/lib/supabase";
-import { locationSchema, productSchema } from "@/lib/validation";
+import { locationEditSchema, locationSchema, productSchema } from "@/lib/validation";
+import { adresseSuchen, type Treffer } from "@/lib/geo";
 import { slugify } from "@/lib/format";
 
 export type FormState = { error?: string; ok?: string } | undefined;
@@ -103,7 +104,7 @@ export async function createLocation(_: FormState, form: FormData): Promise<Form
   const base = slugify(parsed.data.name);
   for (let i = 0; i < 20; i++) {
     const slug = i === 0 ? base : `${base.slice(0, 30)}${i + 1}`;
-    const { error } = await db().from("locations").insert({ ...parsed.data, slug });
+    const { error } = await db().from("locations").insert({ ...parsed.data, slug, oeffentlich: parsed.data.typ !== "Ferienwohnung" });
     if (!error) { revalidatePath("/admin/verkaufsstellen"); return { ok: `${parsed.data.name} angelegt. Link: /kasse/${slug}` }; }
     if (error.code !== "23505") return { error: "Anlegen hat nicht geklappt." };
   }
@@ -142,12 +143,12 @@ export async function setStock(locationId: string, productId: string, field: "is
 
 export async function refill(locationId: string, productId?: string) {
   await requireAdmin();
-  let q = db().from("location_products").select("product_id, soll").eq("location_id", locationId);
+  let q = db().from("location_products").select("product_id, ist, soll").eq("location_id", locationId);
   if (productId) q = q.eq("product_id", productId);
   const { data } = await q;
-  for (const r of data ?? []) await db().from("location_products").update({ ist: r.soll }).eq("location_id", locationId).eq("product_id", r.product_id);
-  revalidatePath("/admin/nachfuellen");
-  revalidatePath("/admin/verkaufsstellen");
+  // Nur auffüllen, nie einen höheren Bestand auf das Soll herunterschreiben
+  for (const r of data ?? []) if (r.ist < r.soll) await db().from("location_products").update({ ist: r.soll }).eq("location_id", locationId).eq("product_id", r.product_id);
+  revalidatePath("/admin", "layout");
 }
 
 /** Mit Bestellungen: abschalten und archivieren (Abrechnung bleibt). Ohne Bestellungen: ganz löschen. */
@@ -163,4 +164,71 @@ export async function reactivateLocation(locationId: string) {
   await requireAdmin();
   await db().from("locations").update({ active: true, archived_at: null }).eq("id", locationId);
   revalidatePath("/admin/verkaufsstellen");
+}
+
+// ---------- Adresse, Karte, Partner ----------
+export async function sucheAdresse(text: string): Promise<Treffer | { error: string }> {
+  await requireAdmin();
+  return (await adresseSuchen(text)) ?? { error: "Adresse nicht gefunden. Bitte genauer schreiben oder den Punkt auf der Karte setzen." };
+}
+
+/** Partnerbild prüfen und neu kodieren: Logo als PNG (behält Transparenz), Werbung als JPEG. */
+async function partnerBild(f: File, art: "logo" | "werbung"): Promise<{ buf: Buffer; type: string; ext: string } | { error: string }> {
+  if (f.size > MAX_FOTO) return { error: "Bild ist zu groß." };
+  try {
+    const img = sharp(Buffer.from(await f.arrayBuffer()), { limitInputPixels: 40_000_000 }).rotate();
+    if (art === "logo") return { buf: await img.resize(400, 400, { fit: "inside", withoutEnlargement: true }).png({ compressionLevel: 9 }).toBuffer(), type: "image/png", ext: "png" };
+    return { buf: await img.resize(1200, 900, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 80, mozjpeg: true }).toBuffer(), type: "image/jpeg", ext: "jpg" };
+  } catch {
+    return { error: "Die Datei ist kein gültiges Bild." };
+  }
+}
+
+export async function saveLocation(_: FormState, form: FormData): Promise<FormState> {
+  await requireAdmin();
+  const id = String(form.get("id") ?? "");
+  if (!/^[0-9a-f-]{36}$/.test(id)) return { error: "Unbekannte Verkaufsstelle." };
+  const s = (k: string) => String(form.get(k) ?? "");
+  const parsed = locationEditSchema.safeParse({
+    name: s("name"), typ: s("typ"), ort: s("ort"), strasse: s("strasse"), plz: s("plz"), hinweis: s("hinweis"),
+    oeffentlich: form.get("oeffentlich") === "on", lat: s("lat"), lng: s("lng"), werbung_text: s("werbung_text"), werbung_link: s("werbung_link"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Bitte Eingaben prüfen." };
+  const d = parsed.data;
+  let { lat, lng } = d;
+  let hinweisGeo = "";
+  // Kein Punkt gesetzt, aber Adresse da: automatisch suchen
+  if ((lat === null || lng === null) && (d.strasse || d.ort)) {
+    const t = await adresseSuchen([d.strasse, [d.plz, d.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "));
+    if (t) { lat = t.lat; lng = t.lng; } else hinweisGeo = " Adresse wurde auf der Karte nicht gefunden, bitte den Punkt von Hand setzen.";
+  }
+  if (lat === null || lng === null) { lat = null; lng = null; }
+
+  const { data: alt } = await db().from("locations").select("logo_path, werbung_bild").eq("id", id).single();
+  const row: Record<string, unknown> = { ...d, lat, lng };
+  const weg: string[] = [];
+
+  for (const [feld, spalte, art] of [["logo", "logo_path", "logo"], ["werbung_bild", "werbung_bild", "werbung"]] as const) {
+    const f = form.get(feld);
+    const altPfad = alt?.[spalte] ?? null;
+    if (f instanceof File && f.size > 0) {
+      const b = await partnerBild(f, art);
+      if ("error" in b) return { error: b.error };
+      const path = `${id}/${art}-${Date.now()}.${b.ext}`;
+      const up = await db().storage.from("partner").upload(path, b.buf, { contentType: b.type, upsert: false });
+      if (up.error) return { error: "Bild konnte nicht gespeichert werden." };
+      row[spalte] = path;
+      if (altPfad) weg.push(altPfad);
+    } else if (form.get(`${feld}_entfernen`) === "1") {
+      row[spalte] = null;
+      if (altPfad) weg.push(altPfad);
+    }
+  }
+
+  const { error } = await db().from("locations").update(row).eq("id", id);
+  if (error) return { error: "Speichern hat nicht geklappt." };
+  if (weg.length) await db().storage.from("partner").remove(weg);
+  revalidatePath("/admin/verkaufsstellen");
+  revalidatePath("/karte");
+  return { ok: `Gespeichert.${hinweisGeo}` };
 }
