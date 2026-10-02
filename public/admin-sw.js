@@ -5,7 +5,9 @@ self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
-  e.waitUntil(
+  e.waitUntil(Promise.all([
+    // Offene Fenster der App sofort neu laden lassen (Bestand, Warnungen, Bestellungen)
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => list.forEach((c) => c.postMessage({ typ: "stand" }))),
     self.registration.showNotification(d.title || "Hofkasse", {
       body: d.body || "",
       icon: "/icons/hofkasse-192.png",
@@ -14,7 +16,7 @@ self.addEventListener("push", (e) => {
       renotify: Boolean(d.tag),
       data: { url: d.url || "/admin" },
     }),
-  );
+  ]));
 });
 
 self.addEventListener("notificationclick", (e) => {

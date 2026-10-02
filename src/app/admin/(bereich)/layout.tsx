@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { signOut } from "../actions";
 import { AdminNav } from "@/components/admin-nav";
+import { LiveStand } from "@/components/live-stand";
 import { db } from "@/lib/supabase";
 import { stufe } from "@/lib/format";
 
@@ -27,6 +28,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
         </div>
       </aside>
       <main className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-7">{children}</main>
+      <LiveStand />
     </div>
   );
 }
