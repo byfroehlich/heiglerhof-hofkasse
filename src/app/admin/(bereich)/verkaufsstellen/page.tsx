@@ -27,15 +27,31 @@ export default async function Verkaufsstellen() {
       <h1 className="text-3xl font-bold">Verkaufsstellen</h1>
       <p className="max-w-3xl font-txt text-mut">Jede Verkaufsstelle hat einen eigenen Link für ihren QR Code, ein eigenes Sortiment mit Ist- und Sollbestand und wird getrennt abgerechnet.</p>
       <NewLocationForm />
-      <div className="mt-5 grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(320px,1fr))]">
+      <p className="mt-5 text-sm text-mut">{active.length} Verkaufsstellen · zum Bearbeiten antippen</p>
+      <div className="mt-2 flex max-w-3xl flex-col gap-2">
         {active.map((l) => {
           const lp = new Map(l.location_products.map((x) => [x.product_id, x]));
+          const nLeer = l.location_products.filter((x) => stufe(x.ist, x.warn) === "leer").length;
+          const nKnapp = l.location_products.filter((x) => stufe(x.ist, x.warn) === "knapp").length;
+          const arten = [l.paypal_aktiv && "PayPal", l.ueberweisung_aktiv && "Überweisung", l.bar_aktiv && "Bar"].filter(Boolean).join(" · ");
           return (
-            <section key={l.id} className="min-w-0 rounded-xl bg-cream p-4">
+            <details key={l.id} className="group/stelle min-w-0 rounded-xl border border-line bg-cream open:shadow-sm">
+              <summary className="flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-semibold uppercase tracking-wider text-mut">{l.typ}</span>
+                  <span className="block text-xl font-bold leading-tight">{l.name}</span>
+                  <span className="mt-0.5 block truncate text-sm text-mut">{arten}</span>
+                </span>
+                <span className="flex flex-none flex-col items-end gap-1">
+                  {nLeer > 0 && <span className="pill bg-bad">{nLeer} leer</span>}
+                  {nKnapp > 0 && <span className="pill bg-warn">{nKnapp} Minimum</span>}
+                  {l.lat == null && <span className="pill bg-[#9a948a]">ohne Karte</span>}
+                </span>
+                <span className="flex-none text-3xl text-mut transition group-open/stelle:rotate-90" aria-hidden>›</span>
+              </summary>
+              <div className="border-t border-line p-4">
               <div className="flex gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-mut">{l.typ}</div>
-                  <h2 className="text-xl font-bold leading-tight">{l.name}</h2>
                   <div className="text-sm text-mut">{[l.strasse, [l.plz, l.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "Adresse fehlt"}</div>
                   <div className="mt-0.5 flex flex-wrap gap-1 text-xs">
                     {l.lat == null ? <span className="pill bg-warn">kein Kartenpunkt</span> : l.oeffentlich ? <span className="pill bg-ok">auf der Karte</span> : <span className="pill bg-[#9a948a]">nicht öffentlich</span>}
@@ -86,7 +102,8 @@ export default async function Verkaufsstellen() {
                 </div>
               </details>
               <RemoveLocation id={l.id} name={l.name} orders={orderCount(l.id)} />
-            </section>
+              </div>
+            </details>
           );
         })}
       </div>
