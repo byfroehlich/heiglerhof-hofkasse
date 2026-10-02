@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { paypalAnmeldung } from "@/lib/paypal";
+import { rateLimited } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +18,8 @@ function claims(key: string | undefined): { ref: string | null; role: string | n
 }
 
 // Diagnose für die Einrichtung. Gibt keine geheimen Werte heraus.
-export async function GET() {
+export async function GET(req: Request) {
+  if (rateLimited(req, 10)) return NextResponse.json({ error: "Zu viele Anfragen" }, { status: 429 });
   const raw = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const url = raw ? new URL(raw).origin : undefined;
   const urlRef = url ? new URL(url).hostname.split(".")[0] : null;
@@ -40,6 +43,7 @@ export async function GET() {
       authApi = "nicht erreichbar";
     }
   }
+  const paypalDa = Boolean(process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET);
   const ok =
     authApi === 200 && db === 200 && anon.role === "anon" && service.role === "service_role" &&
     (anon.ref === null || anon.ref === urlRef) && (service.ref === null || service.ref === urlRef);
@@ -51,6 +55,9 @@ export async function GET() {
     service_key: { projekt: service.ref, rolle: service.role, format: service.format },
     auth_api_status: authApi,
     datenbank_status: db,
-    paypal_eingerichtet: Boolean(process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET),
+    paypal_eingerichtet: paypalDa,
+    paypal_modus: (process.env.PAYPAL_API_BASE || "https://api-m.sandbox.paypal.com").includes("sandbox") ? "sandbox (Testgeld)" : "live (echtes Geld)",
+    paypal_anmeldung: paypalDa ? await paypalAnmeldung() : "nicht geprüft",
+    paypal_webhook_id_gesetzt: Boolean(process.env.PAYPAL_WEBHOOK_ID),
   });
 }
