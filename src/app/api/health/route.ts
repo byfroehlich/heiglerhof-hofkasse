@@ -51,12 +51,16 @@ export async function GET(req: Request) {
   ];
   let migrationen: string[] | string = "nicht geprüft";
   let ungebucht: number | string = "nicht geprüft";
+  let gebuehr = "nicht geprüft";
   if (url && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     const fehlt = await Promise.all(schritte.map(async ([n, t, c]) => ((await datenbank().from(t).select(c).limit(1)).error ? n : null)));
     migrationen = fehlt.filter((x): x is string => x !== null);
     const { count } = await datenbank().from("orders").select("id", { count: "exact", head: true })
       .eq("stock_booked", false).in("status", ["paid", "cash", "transfer", "transfer_paid"]);
     ungebucht = count ?? "unbekannt";
+    const g = await datenbank().from("einstellungen").select("paypal_gebuehr_aktiv, paypal_gebuehr_bp, paypal_gebuehr_fix_cents").eq("id", 1).maybeSingle();
+    gebuehr = g.error ? `Fehler: ${g.error.message}` : !g.data ? "keine Einstellungen" :
+      `${g.data.paypal_gebuehr_aktiv ? "an" : "aus"} (${(g.data.paypal_gebuehr_bp / 100).toFixed(2)} % + ${(g.data.paypal_gebuehr_fix_cents / 100).toFixed(2)} €)`;
   }
   const paypalDa = Boolean(process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET);
   const ok =
@@ -76,5 +80,6 @@ export async function GET(req: Request) {
     paypal_modus: (process.env.PAYPAL_API_BASE || "https://api-m.sandbox.paypal.com").includes("sandbox") ? "sandbox (Testgeld)" : "live (echtes Geld)",
     paypal_anmeldung: paypalDa ? await paypalAnmeldung() : "nicht geprüft",
     paypal_webhook_id_gesetzt: Boolean(process.env.PAYPAL_WEBHOOK_ID),
+    paypal_gebuehr: gebuehr,
   });
 }
