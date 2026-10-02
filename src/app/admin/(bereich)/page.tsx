@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/supabase";
-import { eur, stufe } from "@/lib/format";
+import { eur, produktLabel, stufe, type ProduktKurz } from "@/lib/format";
 import { markTransferPaid } from "../actions";
 
 const STATUS: Record<string, { t: string; c: string }> = {
@@ -8,7 +8,7 @@ const STATUS: Record<string, { t: string; c: string }> = {
   review: { t: "prüfen", c: "bg-warn" }, transfer: { t: "Überweisung offen", c: "bg-warn" }, transfer_paid: { t: "überwiesen", c: "bg-ok" }, refunded: { t: "erstattet", c: "bg-[#7a5c9a]" }, cancelled: { t: "abgebrochen", c: "bg-[#bbb]" },
 };
 
-type W = { ist: number; soll: number; warn: number; locations: { name: string }; products: { name: string } };
+type W = { ist: number; soll: number; warn: number; locations: { name: string }; products: ProduktKurz };
 type O = { id: string; nr: number; status: string; total_cents: number; created_at: string; locations: { name: string }; order_items: { name_snapshot: string; quantity: number }[] };
 
 export default async function Bestellungen({ searchParams }: PageProps<"/admin">) {
@@ -23,7 +23,7 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin">
   const orders = data ?? [];
   const month = new Date(); month.setDate(1); month.setHours(0, 0, 0, 0);
   const { data: m } = await db().from("orders").select("status, total_cents").in("status", ["paid", "cash", "transfer_paid"]).gte("created_at", month.toISOString());
-  const { data: bestand } = await db().from("location_products").select("ist, soll, warn, locations!inner(name, active), products!inner(name)").eq("locations.active", true).returns<W[]>();
+  const { data: bestand } = await db().from("location_products").select("ist, soll, warn, locations!inner(name, active), products!inner(name, zusatz, inhalt, einheit)").eq("locations.active", true).returns<W[]>();
   const leer = (bestand ?? []).filter((r) => stufe(r.ist, r.warn) === "leer");
   const knapp = (bestand ?? []).filter((r) => stufe(r.ist, r.warn) === "knapp");
   const sum = (s: string) => (m ?? []).filter((o) => o.status === s).reduce((a, o) => a + o.total_cents, 0);
@@ -88,7 +88,7 @@ function Warnung({ farbe, titel, leer, rows }: { farbe: "bad" | "warn"; titel: s
       </div>
       {aktiv ? (
         <ul className="mt-1 text-sm">
-          {rows.slice(0, 6).map((r, i) => <li key={i}>{r.locations.name}: {r.products.name} <span className="tnum text-mut">{r.ist} / {r.soll}</span></li>)}
+          {rows.slice(0, 6).map((r, i) => <li key={i}>{r.locations.name}: {produktLabel(r.products)} <span className="tnum text-mut">{r.ist} / {r.soll}</span></li>)}
           {rows.length > 6 && <li className="text-mut">und {rows.length - 6} weitere</li>}
         </ul>
       ) : <p className="mt-1 text-sm text-mut">{leer}</p>}

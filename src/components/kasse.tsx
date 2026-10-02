@@ -88,8 +88,12 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
     finally { setBusy(false); }
   }
 
-  const zahlweg = location.paypal && location.bar ? "zahlt hier mit PayPal oder bar in die Kasse" : location.paypal ? "zahlt hier mit PayPal" : "legt das Geld bar in die Kasse";
-  const oderBar = location.bar ? " oder bar zahlen" : "";
+  // Alle aktiven Zahlarten gleichwertig nennen
+  const arten = [location.paypal && "mit PayPal", location.ueberweisung && "per Überweisung", location.bar && "bar in die Kasse"].filter(Boolean) as string[];
+  const liste = arten.length > 1 ? `${arten.slice(0, -1).join(", ")} oder ${arten[arten.length - 1]}` : arten[0] ?? "";
+  const zahlweg = `zahlt hier ${liste}`;
+  const andere = [location.ueberweisung && "per Überweisung", location.bar && "bar"].filter(Boolean) as string[];
+  const oderBar = andere.length ? ` oder ${andere.join(" oder ")} zahlen` : "";
   const intro =
     location.typ === "Verkaufskasten"
       ? `Selbstbedienung direkt an unserer Hoftür. Nehmt euch, was ihr mögt, und ${zahlweg}.`
@@ -146,7 +150,8 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
             </label>
           )}
           {err && <div className="mt-3 rounded-xl bg-[#fbe9e7] p-3 text-bad">{err}</div>}
-          {location.paypal && <div className={`mt-5 ${blocked ? "pointer-events-none opacity-40" : ""}`} aria-disabled={blocked}>
+          <h2 className="mt-5 text-lg font-semibold">Wie wollt ihr bezahlen?</h2>
+          {location.paypal && <div className={`mt-2 ${blocked ? "pointer-events-none opacity-40" : ""}`} aria-disabled={blocked}>
             {paypalClientId ? (
               <PayPalScriptProvider options={{ clientId: paypalClientId, currency: "EUR", intent: "capture", locale: "de_DE", components: "buttons", disableFunding: "card,sepa,giropay,sofort,eps,bancontact,blik,ideal,mybank,p24" }}>
                 <PayPalButtons
@@ -165,7 +170,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
                     finally { setBusy(false); }
                   }}
                   onCancel={() => setErr(`Zahlung abgebrochen. Ihr könnt es noch einmal versuchen${oderBar}.`)}
-                  onError={(e) => setErr(String((e as { message?: unknown })?.message ?? "") || (location.bar ? "PayPal hat gerade ein Problem. Bitte bar zahlen oder später noch einmal versuchen." : "PayPal hat gerade ein Problem. Bitte später noch einmal versuchen."))}
+                  onError={(e) => setErr(String((e as { message?: unknown })?.message ?? "") || `PayPal hat gerade ein Problem. Bitte später noch einmal versuchen${oderBar}.`)}
                 />
               </PayPalScriptProvider>
             ) : (
@@ -173,12 +178,12 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
             )}
           </div>}
           {location.ueberweisung && (
-            <button className={`btn mt-2 w-full ${location.paypal ? "btn-ghost" : "btn-or"}`} disabled={blocked || busy} onClick={payTransfer}>
+            <button className="btn mt-3 h-12 w-full border-2 border-ink bg-paper text-lg" disabled={blocked || busy} onClick={payTransfer}>
               Per Überweisung mit der Banking App
             </button>
           )}
           {location.bar && (
-            <button className={`btn mt-2 w-full ${location.paypal ? "btn-ghost" : "btn-or mt-5"}`} disabled={blocked || busy} onClick={payCash}>
+            <button className="btn mt-3 h-12 w-full border-2 border-ink bg-paper text-lg" disabled={blocked || busy} onClick={payCash}>
               Ich lege {eur(preview)} bar in die Kasse
             </button>
           )}
@@ -215,7 +220,8 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
                     <h3 className="text-xl font-semibold leading-tight">{p.name}</h3>
                     <div className="text-sm leading-snug text-mut">
                       {inhaltText(p.inhalt, p.einheit)}
-                      {p.alkohol_vol != null ? <> · <span className="font-semibold text-bad">{alkoholText(p.alkohol_vol)}</span></> : p.zusatz ? ` · ${p.zusatz}` : ""}
+                      {p.alkohol_vol != null && <> · <span className="font-semibold text-bad">{alkoholText(p.alkohol_vol)}</span></>}
+                      {p.zusatz && <> · {p.zusatz}</>}
                       <br />Grundpreis {grundpreisText(p.price_cents, p.inhalt, p.einheit)}
                       {p.ist < 1 ? <> · <b>gerade leer</b></> : p.ist <= 2 ? ` · nur noch ${p.ist}` : ""}
                     </div>
@@ -240,7 +246,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
           <button className="btn btn-or w-full" disabled={!count} onClick={() => { setErr(null); setStep("sum"); }}>
             {count ? `Weiter · ${count} Artikel · ${eur(preview)}` : "Produkt wählen"}
           </button>
-          <p className="mt-2 text-center text-sm text-mut">{location.paypal && location.bar ? "Bar zahlen geht auch: Geld einfach in die Kasse legen." : location.paypal ? "Bezahlt wird hier mit PayPal." : "Bezahlt wird hier bar: Geld einfach in die Kasse legen."}</p>
+          <p className="mt-2 text-center text-sm text-mut">{`Bezahlen könnt ihr ${liste}.`}</p>
         </aside>
       </main>
     </>

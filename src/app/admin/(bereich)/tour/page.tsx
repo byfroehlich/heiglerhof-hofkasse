@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/supabase";
 import { refill } from "../../actions";
-import { STUFE, stufe, type Stufe } from "@/lib/format";
+import { STUFE, produktLabel, stufe, type ProduktKurz, type Stufe } from "@/lib/format";
 import { HOF } from "@/lib/hof";
 import { besteTour, km, mapsLinks, rundLaenge } from "@/lib/route";
 import { dauer, strassenTour } from "@/lib/strasse";
@@ -11,7 +11,7 @@ import { DruckKnopf } from "@/components/druck-knopf";
 type R = {
   ist: number; soll: number; warn: number; location_id: string; product_id: string;
   locations: { name: string; typ: string; strasse: string | null; plz: string | null; ort: string | null; lat: number | null; lng: number | null; active: boolean };
-  products: { name: string; active: boolean };
+  products: ProduktKurz & { active: boolean };
 };
 type Pos = { product_id: string; name: string; ist: number; soll: number; menge: number; stufe: Stufe };
 type Stopp = { id: string; name: string; typ: string; adresse: string; lat: number | null; lng: number | null; pos: Pos[]; schlimmste: Stufe };
@@ -21,7 +21,7 @@ export default async function Tour({ searchParams }: PageProps<"/admin/tour">) {
   const nurLeer = sp.nur === "leer";
   const { data } = await db()
     .from("location_products")
-    .select("ist, soll, warn, location_id, product_id, locations!inner(name, typ, strasse, plz, ort, lat, lng, active), products!inner(name, active)")
+    .select("ist, soll, warn, location_id, product_id, locations!inner(name, typ, strasse, plz, ort, lat, lng, active), products!inner(name, zusatz, inhalt, einheit, active)")
     .eq("locations.active", true)
     .returns<R[]>();
   const rows = data ?? [];
@@ -35,7 +35,7 @@ export default async function Tour({ searchParams }: PageProps<"/admin/tour">) {
     if (!warn.length || (nurLeer && !warn.some((r) => r.ist < 1))) continue;
     const l = rs[0].locations;
     const pos = rs.filter((r) => r.products.active && r.ist < r.soll)
-      .map((r) => ({ product_id: r.product_id, name: r.products.name, ist: r.ist, soll: r.soll, menge: r.soll - r.ist, stufe: stufe(r.ist, r.warn) }))
+      .map((r) => ({ product_id: r.product_id, name: produktLabel(r.products), ist: r.ist, soll: r.soll, menge: r.soll - r.ist, stufe: stufe(r.ist, r.warn) }))
       .sort((a, b) => Number(a.ist > 0) - Number(b.ist > 0) || a.name.localeCompare(b.name, "de"));
     stopps.push({
       id, name: l.name, typ: l.typ, adresse: [l.strasse, [l.plz, l.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "),

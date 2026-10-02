@@ -4,11 +4,11 @@ import { db, fotoUrl } from "@/lib/supabase";
 import { eur, grundpreisText, inhaltText, alkoholText, type Einheit } from "@/lib/format";
 import { setProductActive } from "../../actions";
 
-type P = { id: string; name: string; inhalt: number; einheit: Einheit; price_cents: number; alkohol_vol: number | null; farbe: string; foto_path: string | null; active: boolean };
+type P = { id: string; name: string; zusatz: string | null; inhalt: number; einheit: Einheit; price_cents: number; alkohol_vol: number | null; farbe: string; foto_path: string | null; active: boolean };
 
 export default async function Produkte({ searchParams }: PageProps<"/admin/produkte">) {
   const ok = (await searchParams).gespeichert;
-  const { data } = await db().from("products").select("id, name, inhalt, einheit, price_cents, alkohol_vol, farbe, foto_path, active").order("name").returns<P[]>();
+  const { data } = await db().from("products").select("id, name, zusatz, inhalt, einheit, price_cents, alkohol_vol, farbe, foto_path, active").order("name").returns<P[]>();
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -28,7 +28,7 @@ export default async function Produkte({ searchParams }: PageProps<"/admin/produ
                   <td className="p-2">
                     <span className="inline-flex items-center gap-2">
                       {f ? <Image src={f} alt="" width={32} height={32} className="h-8 w-8 rounded-md object-cover" /> : <span className="h-8 w-8 rounded-md" style={{ background: p.farbe }} />}
-                      {p.name}
+                      <span>{p.name}{p.zusatz && <span className="block text-sm text-mut">{p.zusatz}</span>}</span>
                     </span>
                   </td>
                   <td className="p-2">{inhaltText(p.inhalt, p.einheit)}</td>

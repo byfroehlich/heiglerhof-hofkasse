@@ -36,7 +36,7 @@ export function AssortToggle({ locationId, productId, name, on }: { locationId: 
             router.refresh();
           });
         }} />
-      <span className={`truncate ${checked ? "font-semibold" : "text-mut"}`}>{name}</span>
+      <span className={`min-w-0 break-words ${checked ? "font-semibold" : "text-mut"}`}>{name}</span>
       {pending && <span className="text-xs text-mut">speichert …</span>}
       {err && <span className="text-xs text-bad">{err}</span>}
     </label>

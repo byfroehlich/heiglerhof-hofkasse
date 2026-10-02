@@ -23,20 +23,16 @@ const W = 595.28, H = 841.89, M = 42; // A4 in Punkt, Rand 15 mm
 
 /** Texte fürs Schild. Ohne Bindestriche, herzlich und ein bisschen Allgäu. */
 export function schildTexte(d: SchildDaten) {
-  const nurUe = !d.paypal && !d.bar;
-  const schritt3 = nurUe
-    ? { t: "Überweisen", x: "IBAN, Betrag und Zweck kopieren und in der Banking App einfügen." }
-    : d.paypal
-    ? { t: "Bezahlen", x: "Mit PayPal, in Sekunden erledigt und ganz ohne Kleingeld." }
-    : { t: "Bar zahlen", x: "Betrag im Handy bestätigen und das Geld in die Kasse legen." };
-  const box: { t: string; x: string; klein: string } = nurUe
-    ? { t: "Bezahlt wird per Überweisung", x: "Nach der Auswahl zeigt euch das Handy alle Angaben zum Kopieren. Bitte den Verwendungszweck genau so übernehmen.", klein: "" }
-    : d.paypal && d.bar
-    ? { t: "Am schnellsten mit PayPal", x: "Sicher, kontaktlos und ihr braucht kein passendes Kleingeld. Uns hilft es sehr, wenn ihr so zahlt.", klein: "Bar geht auch: im Handy „bar“ antippen und das Geld in die Kasse legen." }
-    : d.paypal
-      ? { t: "Bezahlt wird mit PayPal", x: "Sicher, kontaktlos und ohne Kleingeld. Ihr braucht nur euer Handy und ein Konto bei PayPal.", klein: "" }
-      : { t: "Bezahlt wird bar", x: "Kurz im Handy bestätigen, dann das Geld in die Kasse legen. So wissen wir, was wir nachfüllen müssen.", klein: "" };
-  if (d.ueberweisung && !nurUe) box.klein = [box.klein, "Überweisung mit der Banking App geht auch."].filter(Boolean).join(" ");
+  // Alle aktiven Zahlarten gleichwertig, in fester Reihenfolge
+  const arten = [
+    d.paypal && { t: "PayPal", x: "Im Handy auf PayPal tippen und bestätigen. Kein Kleingeld nötig." },
+    d.ueberweisung && { t: "Überweisung", x: "Das Handy zeigt IBAN, Betrag und Zweck zum Kopieren in eure Banking App." },
+    d.bar && { t: "Bar", x: "Im Handy „bar“ antippen und das Geld in die Kasse legen." },
+  ].filter((a): a is { t: string; x: string } => Boolean(a));
+  const namen = arten.map((a) => (a.t === "Bar" ? "bar" : a.t === "Überweisung" ? "per Überweisung" : "mit PayPal"));
+  const liste = namen.length > 1 ? `${namen.slice(0, -1).join(", ")} oder ${namen[namen.length - 1]}` : namen[0];
+  const schritt3 = { t: "Bezahlen", x: arten.length > 1 ? `Zahlt ${liste}, ganz wie ihr mögt.` : `Zahlt ${liste}. Wie es geht, steht unten.` };
+  const boxTitel = arten.length > 1 ? "So könnt ihr bezahlen" : `Bezahlt wird ${namen[0]}`;
   const kopf = d.typ === "Verkaufskasten" ? "Selbstbedienung an unserer Hoftür" : d.typ === "Hotel" ? "Für unsere Gäste hier im Haus" : d.typ === "Ferienwohnung" ? "Für euch hier in der Ferienwohnung" : "Hier für euch zum Mitnehmen";
   return {
     kopf,
@@ -46,7 +42,8 @@ export function schildTexte(d: SchildDaten) {
       { t: "Aussuchen", x: "Antippen, was ihr mitnehmt. Der Preis steht gleich dabei." },
       schritt3,
     ],
-    box,
+    arten,
+    boxTitel,
     alkohol: d.alkohol ? "Liköre geben wir nur an Erwachsene ab 18 Jahren ab." : "",
     vertrauen: "Unsere kleine Kasse lebt vom Vertrauen. Vergelt’s Gott!",
   };
@@ -120,17 +117,22 @@ export async function schildPdf(d: SchildDaten): Promise<Uint8Array> {
   if (tx.alkohol) { u += 24; center(p, tx.alkohol, u, semi, 14, C.mut); }
   u += 24;
 
-  const bw = W - 2 * M, inner = bw - 40;
-  const xLines = wrap(tx.box.x, serif, 14, inner);
-  const kLines = tx.box.klein ? wrap(tx.box.klein, med, 13, inner) : [];
-  const boxH = 18 + 26 + 8 + xLines.length * 19 + (kLines.length ? 6 + kLines.length * 17 : 0) + 10;
+  const bw = W - 2 * M;
+  const k = tx.arten.length, gap = 18;
+  const spalte = (bw - 40 - gap * (k - 1)) / k;
+  const artLines = tx.arten.map((a) => wrap(a.x, serif, 13, spalte));
+  const boxH = 18 + 26 + 12 + 24 + Math.max(...artLines.map((l) => l.length)) * 17 + 12;
   const boxTop = u + boxH;
-  roundRect(p, M, boxTop, bw, boxH, 18, { fill: d.paypal ? C.orl : C.cream, border: d.paypal ? C.or : C.line, bw: 1.5 });
-  let by = boxTop - 18 - 22;
-  p.drawText(tx.box.t, { x: M + 20, y: by, size: 26, font: bold, color: d.paypal ? C.orD : C.ink });
-  by -= 30;
-  for (const l of xLines) { p.drawText(l, { x: M + 20, y: by, size: 14, font: serif, color: C.ink }); by -= 19; }
-  if (kLines.length) { by -= 6; for (const l of kLines) { p.drawText(l, { x: M + 20, y: by, size: 13, font: med, color: C.mut }); by -= 17; } }
+  roundRect(p, M, boxTop, bw, boxH, 18, { fill: C.cream, border: C.or, bw: 1.5 });
+  center(p, tx.boxTitel, boxTop - 18 - 22, bold, 26, C.ink);
+  tx.arten.forEach((a, i) => {
+    const x = M + 20 + i * (spalte + gap);
+    const ty = boxTop - 18 - 26 - 12 - 18;
+    p.drawCircle({ x: x + 6, y: ty + 6, size: 6, color: C.or });
+    p.drawText(a.t, { x: x + 18, y: ty, size: 19, font: bold, color: C.ink });
+    let ly = ty - 22;
+    for (const l of artLines[i]) { p.drawText(l, { x, y: ly, size: 13, font: serif, color: C.ink }); ly -= 17; }
+  });
 
   const colW = (W - 2 * M - 2 * 16) / 3;
   const stepLines = tx.schritte.map((s) => wrap(s.x, serif, 12, colW - 4));
@@ -138,7 +140,7 @@ export async function schildPdf(d: SchildDaten): Promise<Uint8Array> {
   const stepsTop = boxTop + 18 + stepsH;
   tx.schritte.forEach((s, i) => {
     const x = M + i * (colW + 16), cx = x + 17;
-    p.drawCircle({ x: cx, y: stepsTop - 17, size: 17, color: i === 2 && d.paypal ? C.or : C.ink });
+    p.drawCircle({ x: cx, y: stepsTop - 17, size: 17, color: C.ink });
     center(p, String(i + 1), stepsTop - 24, bold, 20, C.white, cx);
     p.drawText(s.t, { x: x + 42, y: stepsTop - 24, size: 22, font: bold, color: C.ink });
     let ly = stepsTop - 34 - 12 - 4;

@@ -39,3 +39,10 @@ export function slugify(text: string): string {
       .slice(0, 32) || "stelle"
   );
 }
+
+/** Eindeutiger Produktname für Listen: „Honig 500 g · Blütenhonig“. */
+export type ProduktKurz = { name: string; zusatz?: string | null; inhalt?: number | null; einheit?: Einheit | null };
+export function produktLabel(p: ProduktKurz): string {
+  const basis = p.inhalt && p.einheit ? `${p.name} ${inhaltText(p.inhalt, p.einheit)}` : p.name;
+  return p.zusatz ? `${basis} · ${p.zusatz}` : basis;
+}

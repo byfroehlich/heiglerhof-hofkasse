@@ -2,7 +2,7 @@ import Link from "next/link";
 import { qrSvg } from "@/lib/qr";
 import { siteUrl } from "@/lib/site";
 import { db } from "@/lib/supabase";
-import { STUFE, stufe } from "@/lib/format";
+import { STUFE, produktLabel, stufe, type Einheit } from "@/lib/format";
 import { bankdaten } from "@/lib/giro";
 import { reactivateLocation } from "../../actions";
 import { NewLocationForm, AssortToggle, StockInput, RemoveLocation, Zahlarten } from "@/components/location-controls";
@@ -14,7 +14,7 @@ export default async function Verkaufsstellen() {
   const ueMoeglich = bankdaten() !== null;
   const [{ data: locs }, { data: prods }, { data: counts }] = await Promise.all([
     db().from("locations").select("id, slug, name, typ, ort, strasse, plz, lat, oeffentlich, bar_aktiv, paypal_aktiv, ueberweisung_aktiv, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
-    db().from("products").select("id, name, active").order("name"),
+    db().from("products").select("id, name, zusatz, inhalt, einheit, active").order("name"),
     db().from("orders").select("location_id"),
   ]);
   const orderCount = (id: string) => (counts ?? []).filter((o) => o.location_id === id).length;
@@ -56,13 +56,13 @@ export default async function Verkaufsstellen() {
                   const s = lp.get(p.id);
                   return (
                     <div key={p.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1">
-                      <AssortToggle locationId={l.id} productId={p.id} name={p.name} on={!!s} />
+                      <AssortToggle locationId={l.id} productId={p.id} name={produktLabel({ ...p, einheit: p.einheit as Einheit })} on={!!s} />
                       {s && (
                         <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5 text-sm text-mut">
                           {stufe(s.ist, s.warn) !== "gut" && <span className={`pill ${STUFE[stufe(s.ist, s.warn)].pill}`}>{STUFE[stufe(s.ist, s.warn)].t}</span>}
-                          Ist <StockInput locationId={l.id} productId={p.id} field="ist" value={s.ist} label={`Istbestand ${p.name}`} />
-                          Soll <StockInput locationId={l.id} productId={p.id} field="soll" value={s.soll} label={`Sollbestand ${p.name}`} />
-                          Warnen bei <StockInput locationId={l.id} productId={p.id} field="warn" value={s.warn} label={`Warnbestand ${p.name}`} />
+                          Ist <StockInput locationId={l.id} productId={p.id} field="ist" value={s.ist} label={`Istbestand ${produktLabel({ ...p, einheit: p.einheit as Einheit })}`} />
+                          Soll <StockInput locationId={l.id} productId={p.id} field="soll" value={s.soll} label={`Sollbestand ${produktLabel({ ...p, einheit: p.einheit as Einheit })}`} />
+                          Warnen bei <StockInput locationId={l.id} productId={p.id} field="warn" value={s.warn} label={`Warnbestand ${produktLabel({ ...p, einheit: p.einheit as Einheit })}`} />
                         </span>
                       )}
                     </div>

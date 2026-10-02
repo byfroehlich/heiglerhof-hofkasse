@@ -102,6 +102,9 @@ describe("Zahlarten", () => {
     await q(`select * from book_stock($1)`, [o.order_id]);
     expect((await q<{ ist: number }>(`select ist from location_products where product_id=$1`, [ho]))[0].ist).toBe(3);
     await q(`update orders set status='transfer_paid' where id=$1`, [o.order_id]);
+    await q(`update products set zusatz='Blütenhonig' where id=$1`, [ho]);
+    const [o2] = await order("cash", [{ product_id: ho, unit_price_cents: 650, quantity: 1 }]);
+    expect((await q<{ n: string }>(`select name_snapshot n from order_items where order_id=$1`, [o2.order_id]))[0].n).toBe("Honig 250 g · Blütenhonig");
     await expect(q(`update orders set status='quatsch' where id=$1`, [o.order_id])).rejects.toThrow();
   });
 });

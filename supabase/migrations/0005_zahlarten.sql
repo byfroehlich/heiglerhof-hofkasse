@@ -13,7 +13,7 @@ alter table public.orders drop constraint if exists orders_status_check;
 alter table public.orders add constraint orders_status_check
   check (status in ('created', 'paid', 'review', 'refunded', 'cash', 'cancelled', 'transfer', 'transfer_paid'));
 
--- Bestellung anlegen: zusätzlich mit Status transfer
+-- Bestellung anlegen: zusätzlich mit Status transfer; der Name auf dem Beleg enthält jetzt auch den Zusatz
 create or replace function public.create_order(p_location uuid, p_status text, p_items jsonb)
 returns table (order_id uuid, order_nr integer, total integer)
 language plpgsql security definer set search_path = public as $$
@@ -30,7 +30,8 @@ begin
     select p.price_cents, p.name || ' ' || case when p.einheit = 'ml'
              then replace(rtrim(to_char(p.inhalt / 1000.0, 'FM990.99'), '.'), '.', ',') || ' l'
              when p.inhalt >= 1000 then replace(rtrim(to_char(p.inhalt / 1000.0, 'FM990.99'), '.'), '.', ',') || ' kg'
-             else p.inhalt || ' g' end,
+             else p.inhalt || ' g' end
+           || coalesce(' · ' || p.zusatz, ''),
            lp.ist
       into v_price, v_name, v_ist
       from products p
