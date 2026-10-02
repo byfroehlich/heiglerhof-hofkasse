@@ -12,7 +12,8 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#e48500" };
+// Kein Zoomen am Handy, wie in einer App (Eingabefelder haben mindestens 16 px, damit iOS nicht selbst zoomt)
+export const viewport: Viewport = { width: "device-width", initialScale: 1, maximumScale: 1, userScalable: false, viewportFit: "cover", themeColor: "#e48500" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

@@ -58,3 +58,7 @@ body {
 .leaflet-popup-content { font: 15px/1.35 var(--font-ui); }
 .leaflet-popup-content a { display: inline-block; margin-top: .3rem; color: var(--or-d); text-decoration: underline; }
 @media print { .no-print { display: none !important; } }
+
+/* Kein Doppeltipp-Zoom, kein Gummiband-Effekt beim Ziehen */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+body { overscroll-behavior-y: none; }
