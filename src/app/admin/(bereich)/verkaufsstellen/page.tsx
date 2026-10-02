@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SendenKnopf } from "@/components/senden-knopf";
 import { qrSvg } from "@/lib/qr";
 import { siteUrl } from "@/lib/site";
 import { db, partnerUrl } from "@/lib/supabase";
@@ -123,7 +124,7 @@ export default async function Verkaufsstellen() {
                 <tr key={l.id} className="border-b border-[#f1e8d6]">
                   <td className="p-2">{l.name}</td><td className="p-2">{l.typ}</td>
                   <td className="p-2">entfernt am {l.archived_at ? new Date(l.archived_at).toLocaleDateString("de-DE") : ""}</td>
-                  <td className="p-2 text-right"><form action={reactivateLocation.bind(null, l.id)}><button className="btn btn-ghost btn-sm">Wieder aktivieren</button></form></td>
+                  <td className="p-2 text-right"><form action={reactivateLocation.bind(null, l.id)}><SendenKnopf>Wieder aktivieren</SendenKnopf></form></td>
                 </tr>
               ))}
             </tbody>

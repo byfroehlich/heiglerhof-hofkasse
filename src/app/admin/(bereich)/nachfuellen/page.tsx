@@ -1,4 +1,5 @@
 import { db } from "@/lib/supabase";
+import { SendenKnopf } from "@/components/senden-knopf";
 import { refill } from "../../actions";
 import { STUFE, produktLabel, stufe, type ProduktKurz } from "@/lib/format";
 
@@ -40,11 +41,11 @@ export default async function Nachfuellen() {
                   <span className="min-w-0">{r.ist < 1 && <span className="pill mr-1 bg-bad">leer</span>}{produktLabel(r.products)}</span>
                   <span className="h-2 overflow-hidden rounded bg-line"><i className={`block h-full ${STUFE[stufe(r.ist, r.warn)].bar}`} style={{ width: `${Math.round((r.ist / r.soll) * 100)}%` }} /></span>
                   <span className="text-right tnum">{r.ist} / {r.soll}</span>
-                  <form action={refill.bind(null, r.location_id, r.product_id)}><button className="btn btn-ghost btn-sm">+{r.soll - r.ist}</button></form>
+                  <form action={refill.bind(null, r.location_id, r.product_id)}><SendenKnopf>+{r.soll - r.ist}</SendenKnopf></form>
                 </div>
               ))}
             </div>
-            <form action={refill.bind(null, g[0].location_id, undefined)}><button className="btn btn-or mt-3 w-full">Alles aufgefüllt</button></form>
+            <form action={refill.bind(null, g[0].location_id, undefined)}><SendenKnopf className="btn btn-or mt-3 w-full" arbeit="Wird gespeichert …">Alles aufgefüllt</SendenKnopf></form>
           </div>
         ))}
       </div>

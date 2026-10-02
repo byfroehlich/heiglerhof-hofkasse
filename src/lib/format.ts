@@ -46,3 +46,14 @@ export function produktLabel(p: ProduktKurz): string {
   const basis = p.inhalt && p.einheit ? `${p.name} ${inhaltText(p.inhalt, p.einheit)}` : p.name;
   return p.zusatz ? `${basis} · ${p.zusatz}` : basis;
 }
+
+/** Bestellnummer mit Jahr davor (deutsche Zeit): „2026-1023“. Sortiert sich nach Jahren. */
+export function bestellNr(nr: number, wann: string | Date = new Date()): string {
+  const jahr = new Intl.DateTimeFormat("de-DE", { year: "numeric", timeZone: "Europe/Berlin" }).format(new Date(wann));
+  return `${jahr}-${nr}`;
+}
+
+/** Verwendungszweck: „2026-1023 Hotel Alpenrose“ (höchstens 140 Zeichen, wie bei SEPA erlaubt). */
+export function verwendungszweck(nr: number, stelle: string, wann: string | Date = new Date()): string {
+  return `${bestellNr(nr, wann)} ${stelle.replace(/\s+/g, " ").trim()}`.slice(0, 140);
+}

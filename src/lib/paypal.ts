@@ -1,4 +1,5 @@
 import "server-only";
+import { bestellNr } from "./format";
 import { env } from "./env";
 import { toPayPalValue, type Quote } from "./pricing";
 
@@ -53,7 +54,7 @@ export async function createPayPalOrder(orderId: string, orderNr: number, quote:
         {
           reference_id: orderId,
           custom_id: orderId,
-          invoice_id: `HH-${orderNr}`,
+          invoice_id: bestellNr(orderNr),
           description: `Heiglerhof Hofkasse · ${locationName}`.slice(0, 127),
           amount: {
             currency_code: "EUR",

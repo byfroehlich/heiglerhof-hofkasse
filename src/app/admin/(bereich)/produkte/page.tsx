@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SendenKnopf } from "@/components/senden-knopf";
 import Image from "next/image";
 import { db, fotoUrl } from "@/lib/supabase";
 import { eur, grundpreisText, inhaltText, alkoholText, type Einheit } from "@/lib/format";
@@ -37,9 +38,9 @@ export default async function Produkte({ searchParams }: PageProps<"/admin/produ
                   <td className="p-2">{alkoholText(p.alkohol_vol == null ? null : Number(p.alkohol_vol)) ?? "nein"}</td>
                   <td className="p-2">
                     <form action={setProductActive.bind(null, p.id, !p.active)}>
-                      <button role="switch" aria-checked={p.active} aria-label={`${p.name} ${p.active ? "ausblenden" : "einblenden"}`} className={`relative h-6 w-11 rounded-full ${p.active ? "bg-ok" : "bg-[#c8c1b4]"}`}>
+                      <SendenKnopf role="switch" aria-checked={p.active} aria-label={`${p.name} ${p.active ? "ausblenden" : "einblenden"}`} arbeit="…" className={`relative h-6 w-11 rounded-full ${p.active ? "bg-ok" : "bg-[#c8c1b4]"}`}>
                         <span className={`absolute top-[3px] h-[18px] w-[18px] rounded-full bg-white ${p.active ? "left-[23px]" : "left-[3px]"}`} />
-                      </button>
+                      </SendenKnopf>
                     </form>
                   </td>
                   <td className="p-2"><Link href={`/admin/produkte/${p.id}`} className="btn btn-ghost btn-sm">Bearbeiten</Link></td>
