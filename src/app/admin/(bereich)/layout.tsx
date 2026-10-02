@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { signOut } from "../actions";
 import { AdminNav } from "@/components/admin-nav";
@@ -15,8 +16,10 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const knapp = rows.filter((r) => stufe(r.ist, r.warn) === "knapp").length;
   return (
     <div className="flex min-h-full flex-1 flex-col md:flex-row">
-      <aside className="flex items-center gap-2 overflow-x-auto border-b border-line bg-cream px-3 py-2 md:w-56 md:flex-none md:flex-col md:items-stretch md:gap-1 md:border-b-0 md:border-r md:px-3 md:py-5">
-        <Image src="/logo@2x.png" alt="Heiglerhof" width={96} height={95} className="h-11 w-11 flex-none md:mb-3 md:ml-2 md:h-24 md:w-24" />
+      <aside className="sticky top-0 z-20 flex items-center gap-2 border-b border-line bg-cream px-3 py-2 md:w-56 md:flex-none md:flex-col md:items-stretch md:gap-1 md:border-b-0 md:static md:border-r md:px-3 md:py-5" style={{ paddingTop: "max(.5rem, env(safe-area-inset-top))" }}>
+        <Link href="/admin" aria-label="Zum Startbildschirm" className="flex-none md:mb-3 md:ml-2">
+          <Image src="/logo@2x.png" alt="Heiglerhof" width={96} height={95} className="h-11 w-11 md:h-24 md:w-24" />
+        </Link>
         <AdminNav leer={leer} knapp={knapp} />
         <div className="hidden md:mt-auto md:block md:px-2 md:text-sm md:text-mut">
           {me.email}

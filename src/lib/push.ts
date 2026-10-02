@@ -63,7 +63,7 @@ export async function kaufPush(orderId: string) {
   await sendePush("kauf", {
     title: `Neuer Kauf: ${eur(o.total_cents)} · ${o.locations.name}`,
     body: `${ART_TEXT[o.status] ?? o.status} · ${pos}`.slice(0, 180),
-    url: "/admin", tag: `kauf-${o.nr}`,
+    url: "/admin/bestellungen", tag: `kauf-${o.nr}`,
   });
 }
 

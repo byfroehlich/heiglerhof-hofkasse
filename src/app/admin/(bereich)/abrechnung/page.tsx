@@ -43,7 +43,7 @@ export default async function Abrechnung({ searchParams }: PageProps<"/admin/abr
                 <td className="p-2">{l.name} {!l.active && <span className="pill bg-[#9a948a]">ehemalig</span>}</td><td className="p-2">{l.typ}</td>
                 <td className="p-2 text-right">{l.n}</td><td className="p-2 text-right">{eur(l.pp)}</td><td className="p-2 text-right">{eur(l.bar)}</td><td className="p-2 text-right">{eur(l.ue)}</td>
                 <td className="p-2 text-right font-bold">{eur(l.pp + l.bar + l.ue)}</td>
-                <td className="p-2"><Link className="btn btn-ghost btn-sm" href={`/admin?stelle=${l.id}`}>Bestellungen</Link></td>
+                <td className="p-2"><Link className="btn btn-ghost btn-sm" href={`/admin/bestellungen?stelle=${l.id}`}>Bestellungen</Link></td>
               </tr>
             ))}
             <tr className="font-bold"><td className="p-2">Gesamt</td><td /><td className="p-2 text-right">{t.n}</td><td className="p-2 text-right">{eur(t.pp)}</td><td className="p-2 text-right">{eur(t.bar)}</td><td className="p-2 text-right">{eur(t.ue)}</td><td className="p-2 text-right">{eur(t.pp + t.bar + t.ue)}</td><td /></tr>
