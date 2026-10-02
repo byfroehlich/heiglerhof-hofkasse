@@ -34,7 +34,7 @@ export async function loadShop(slug: string): Promise<{ location: Location; part
     .maybeSingle<Omit<Location, "bar" | "paypal" | "ueberweisung"> & { bar_aktiv: boolean; paypal_aktiv: boolean; ueberweisung_aktiv: boolean; logo_path: string | null; werbung_bild: string | null; werbung_text: string | null; werbung_link: string | null }>();
   if (locError) throw locError;
   if (!loc) return null;
-  const location: Location = { id: loc.id, slug: loc.slug, name: loc.name, typ: loc.typ, ort: loc.ort, bar: loc.bar_aktiv, paypal: loc.paypal_aktiv, ueberweisung: loc.ueberweisung_aktiv && bankdaten() !== null };
+  const location: Location = { id: loc.id, slug: loc.slug, name: loc.name, typ: loc.typ, ort: loc.ort, bar: loc.bar_aktiv, paypal: loc.paypal_aktiv, ueberweisung: loc.ueberweisung_aktiv && (await bankdaten()) !== null };
   const partner: Partner = { logo: partnerUrl(loc.logo_path), bild: partnerUrl(loc.werbung_bild), text: loc.werbung_text, link: loc.werbung_link };
 
   const { data, error } = await db()

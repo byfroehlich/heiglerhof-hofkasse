@@ -11,7 +11,7 @@ type L = { id: string; slug: string; name: string; typ: string; ort: string | nu
 
 export default async function Verkaufsstellen() {
   const base = await siteUrl();
-  const ueMoeglich = bankdaten() !== null;
+  const ueMoeglich = (await bankdaten()) !== null;
   const [{ data: locs }, { data: prods }, { data: counts }] = await Promise.all([
     db().from("locations").select("id, slug, name, typ, ort, strasse, plz, lat, oeffentlich, bar_aktiv, paypal_aktiv, ueberweisung_aktiv, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
     db().from("products").select("id, name, zusatz, inhalt, einheit, active").order("name"),

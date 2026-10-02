@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
+vi.mock("./supabase", () => ({ db: () => { throw new Error("nicht im Test"); } }));
 const { epcText, ibanGueltig, ibanLesbar } = await import("./giro");
 
 describe("giro", () => {

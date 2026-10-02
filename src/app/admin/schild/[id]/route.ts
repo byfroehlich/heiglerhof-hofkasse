@@ -19,7 +19,7 @@ export async function GET(req: Request, ctx: RouteContext<"/admin/schild/[id]">)
   if (!l) return new Response("Nicht gefunden", { status: 404 });
   const pdf = await schildPdf({
     name: l.name, typ: l.typ, url: `${await siteUrl()}/kasse/${l.slug}`,
-    bar: l.bar_aktiv, paypal: l.paypal_aktiv, ueberweisung: l.ueberweisung_aktiv && bankdaten() !== null,
+    bar: l.bar_aktiv, paypal: l.paypal_aktiv, ueberweisung: l.ueberweisung_aktiv && (await bankdaten()) !== null,
     alkohol: l.location_products.some((x) => x.products?.active && x.products.alkohol_vol != null),
   });
   const download = new URL(req.url).searchParams.get("download") === "1";

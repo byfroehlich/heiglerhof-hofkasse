@@ -10,6 +10,7 @@ const items = [
   { href: "/admin/abrechnung", label: "Abrechnung" },
   { href: "/admin/produkte", label: "Produkte und Preise" },
   { href: "/admin/verkaufsstellen", label: "Verkaufsstellen" },
+  { href: "/admin/einstellungen", label: "Einstellungen" },
 ];
 
 export function AdminNav({ leer, knapp }: { leer: number; knapp: number }) {

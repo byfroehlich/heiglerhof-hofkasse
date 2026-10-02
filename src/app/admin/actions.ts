@@ -7,7 +7,8 @@ import { requireAdmin } from "@/lib/auth";
 import { authClient, db } from "@/lib/supabase";
 import { locationEditSchema, locationSchema, productSchema } from "@/lib/validation";
 import { adresseSuchen, type Treffer } from "@/lib/geo";
-import { bankdaten } from "@/lib/giro";
+import { bankdaten, ibanGueltig, ibanLesbar } from "@/lib/giro";
+import { hinweisMail } from "@/lib/notify";
 import { slugify } from "@/lib/format";
 
 export type FormState = { error?: string; ok?: string } | undefined;
@@ -237,7 +238,7 @@ export async function saveLocation(_: FormState, form: FormData): Promise<FormSt
 export async function setZahlart(locationId: string, art: "bar" | "paypal" | "ueberweisung", on: boolean): Promise<FormState> {
   await requireAdmin();
   if (!/^[0-9a-f-]{36}$/.test(locationId)) return { error: "Unbekannte Verkaufsstelle." };
-  if (art === "ueberweisung" && on && !bankdaten()) return { error: "Erst IBAN und Empfänger in Vercel eintragen (ZAHLUNG_IBAN, ZAHLUNG_EMPFAENGER)." };
+  if (art === "ueberweisung" && on && !(await bankdaten())) return { error: "Erst IBAN und Kontoinhaber unter Einstellungen eintragen." };
   const { error } = await db().from("locations").update({ [`${art}_aktiv`]: on }).eq("id", locationId);
   if (error) return { error: error.code === "23514" ? "Mindestens eine Zahlart muss an bleiben." : "Speichern hat nicht geklappt." };
   revalidatePath("/admin/verkaufsstellen");
@@ -249,4 +250,28 @@ export async function markTransferPaid(orderId: string) {
   if (!/^[0-9a-f-]{36}$/.test(orderId)) return;
   await db().from("orders").update({ status: "transfer_paid", paid_at: new Date().toISOString() }).eq("id", orderId).eq("status", "transfer");
   revalidatePath("/admin", "layout");
+}
+
+export async function saveBank(_: FormState, form: FormData): Promise<FormState> {
+  const me = await requireAdmin();
+  const iban = String(form.get("iban") ?? "").replace(/\s+/g, "").toUpperCase();
+  const empfaenger = String(form.get("empfaenger") ?? "").trim();
+  const bic = String(form.get("bic") ?? "").replace(/\s+/g, "").toUpperCase();
+  if (iban === "" && empfaenger === "") {
+    await db().from("einstellungen").update({ iban: null, empfaenger: null, bic: null, geaendert_am: new Date().toISOString(), geaendert_von: me.email }).eq("id", 1);
+    await db().from("locations").update({ ueberweisung_aktiv: false }).eq("ueberweisung_aktiv", true).or("bar_aktiv.eq.true,paypal_aktiv.eq.true");
+    await hinweisMail("Hofkasse: Bankdaten entfernt", `Die Bankdaten für Überweisungen wurden von ${me.email} entfernt.`);
+    revalidatePath("/admin", "layout");
+    return { ok: "Bankdaten entfernt. Überweisung ist überall ausgeschaltet, wo noch eine andere Zahlart an ist." };
+  }
+  if (!ibanGueltig(iban)) return { error: "Die IBAN stimmt nicht. Bitte genau abschreiben, die Prüfziffer passt nicht." };
+  if (empfaenger.length < 2 || empfaenger.length > 70) return { error: "Bitte den Kontoinhaber so eintragen, wie er bei der Bank steht." };
+  if (bic && !/^[A-Z0-9]{8}([A-Z0-9]{3})?$/.test(bic)) return { error: "Die BIC hat 8 oder 11 Zeichen. Sie darf auch leer bleiben." };
+  const { error } = await db().from("einstellungen")
+    .upsert({ id: 1, iban, empfaenger, bic: bic || null, geaendert_am: new Date().toISOString(), geaendert_von: me.email });
+  if (error) return { error: "Speichern hat nicht geklappt." };
+  await hinweisMail("Hofkasse: Bankdaten geändert",
+    `Die Bankdaten für Überweisungen wurden geändert von ${me.email}.\n\nKontoinhaber: ${empfaenger}\nIBAN: ${ibanLesbar(iban)}${bic ? `\nBIC: ${bic}` : ""}\n\nWar das nicht ihr? Sofort im Adminbereich prüfen und das Passwort ändern.`);
+  revalidatePath("/admin", "layout");
+  return { ok: "Gespeichert. Jetzt bei den gewünschten Verkaufsstellen den Schalter Überweisung einschalten." };
 }

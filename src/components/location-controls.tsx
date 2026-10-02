@@ -104,7 +104,7 @@ export function Zahlarten({ locationId, bar, paypal, ueberweisung, ueMoeglich }:
   const toggle = (art: Art) => {
     const v = !state[art];
     if (!v && !(Object.keys(state) as Art[]).some((k) => k !== art && state[k])) { setErr("Mindestens eine Zahlart muss an bleiben."); return; }
-    if (v && art === "ueberweisung" && !ueMoeglich) { setErr("Erst IBAN und Empfänger in Vercel eintragen (ZAHLUNG_IBAN, ZAHLUNG_EMPFAENGER)."); return; }
+    if (v && art === "ueberweisung" && !ueMoeglich) { setErr("Erst IBAN und Kontoinhaber unter Einstellungen eintragen."); return; }
     setState((s) => ({ ...s, [art]: v })); setErr(null);
     start(async () => {
       const r = await setZahlart(locationId, art, v);

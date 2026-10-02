@@ -1,13 +1,21 @@
 import "server-only";
 import QRCode from "qrcode";
+import { db } from "./supabase";
 
-/** Bankdaten für die Überweisung kommen aus Vercel (ZAHLUNG_IBAN, ZAHLUNG_EMPFAENGER, optional ZAHLUNG_BIC). */
-export function bankdaten(): { iban: string; empfaenger: string; bic: string } | null {
-  const iban = (process.env.ZAHLUNG_IBAN ?? "").replace(/\s+/g, "").toUpperCase();
-  const empfaenger = (process.env.ZAHLUNG_EMPFAENGER ?? "").trim().slice(0, 70);
-  const bic = (process.env.ZAHLUNG_BIC ?? "").replace(/\s+/g, "").toUpperCase();
+export type Bank = { iban: string; empfaenger: string; bic: string };
+
+function pruefen(ibanRoh: string | null | undefined, empfRoh: string | null | undefined, bicRoh: string | null | undefined): Bank | null {
+  const iban = (ibanRoh ?? "").replace(/\s+/g, "").toUpperCase();
+  const empfaenger = (empfRoh ?? "").trim().slice(0, 70);
+  const bic = (bicRoh ?? "").replace(/\s+/g, "").toUpperCase();
   if (!ibanGueltig(iban) || !empfaenger) return null;
   return { iban, empfaenger, bic: /^[A-Z0-9]{8}([A-Z0-9]{3})?$/.test(bic) ? bic : "" };
+}
+
+/** Bankdaten für die Überweisung: zuerst aus Admin → Einstellungen, sonst aus Vercel (ZAHLUNG_IBAN, ZAHLUNG_EMPFAENGER, ZAHLUNG_BIC). */
+export async function bankdaten(): Promise<Bank | null> {
+  const { data } = await db().from("einstellungen").select("iban, empfaenger, bic").eq("id", 1).maybeSingle();
+  return pruefen(data?.iban, data?.empfaenger, data?.bic) ?? pruefen(process.env.ZAHLUNG_IBAN, process.env.ZAHLUNG_EMPFAENGER, process.env.ZAHLUNG_BIC);
 }
 
 /** Prüfziffer nach ISO 13616 (mod 97). */
