@@ -30,3 +30,18 @@ export async function notifyLowStock(rows: LowStock[]): Promise<void> {
     console.error("[nachfuellen]", e);
   }
 }
+
+/** Einfache Hinweis-Mail an NOTIFY_EMAIL (z. B. bei geänderten Bankdaten). Ohne Konfiguration nur ins Log. */
+export async function hinweisMail(betreff: string, text: string): Promise<void> {
+  if (!env.resendKey || !env.notifyTo) { console.info("[hinweis]", betreff); return; }
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.resendKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: env.notifyFrom, to: env.notifyTo.split(",").map((x) => x.trim()), subject: betreff, text }),
+    });
+    if (!res.ok) console.error("[hinweis] Resend", res.status);
+  } catch (e) {
+    console.error("[hinweis]", e);
+  }
+}

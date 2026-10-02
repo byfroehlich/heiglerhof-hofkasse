@@ -11,7 +11,7 @@ type L = { id: string; slug: string; name: string; typ: string; ort: string | nu
 
 export default async function Verkaufsstellen() {
   const base = await siteUrl();
-  const ueMoeglich = bankdaten() !== null;
+  const ueMoeglich = (await bankdaten()) !== null;
   const [{ data: locs }, { data: prods }, { data: counts }] = await Promise.all([
     db().from("locations").select("id, slug, name, typ, ort, strasse, plz, lat, oeffentlich, bar_aktiv, paypal_aktiv, ueberweisung_aktiv, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
     db().from("products").select("id, name, zusatz, inhalt, einheit, active").order("name"),
@@ -50,7 +50,21 @@ export default async function Verkaufsstellen() {
                 </Link>
               </div>
               <Zahlarten locationId={l.id} bar={l.bar_aktiv} paypal={l.paypal_aktiv} ueberweisung={l.ueberweisung_aktiv} ueMoeglich={ueMoeglich} />
-              <p className="mt-3 text-sm text-mut">Haken setzen, dann eintragen: Ist (was gerade da ist), Soll (was da sein soll) und „Warnen bei“ (ab dieser Menge oder weniger kommt eine Nachfüllmeldung). Speichert beim Verlassen des Feldes.</p>
+              <details className="group mt-3 rounded-lg border border-line bg-paper">
+                <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-semibold [&::-webkit-details-marker]:hidden">
+                  <span className="inline-block transition group-open:rotate-90" aria-hidden>›</span>
+                  Sortiment und Bestand
+                  <span className="text-sm font-normal text-mut">{l.location_products.length} Produkte</span>
+                  <span className="ml-auto flex gap-1">
+                    {(() => {
+                      const leer = l.location_products.filter((x) => stufe(x.ist, x.warn) === "leer").length;
+                      const knapp = l.location_products.filter((x) => stufe(x.ist, x.warn) === "knapp").length;
+                      return <>{leer > 0 && <span className="pill bg-bad">{leer} leer</span>}{knapp > 0 && <span className="pill bg-warn">{knapp} Minimum</span>}</>;
+                    })()}
+                  </span>
+                </summary>
+                <div className="border-t border-line px-3 pb-2">
+              <p className="mt-2 text-sm text-mut">Haken setzen, dann eintragen: Ist (was gerade da ist), Soll (was da sein soll) und „Warnen bei“ (ab dieser Menge oder weniger kommt eine Nachfüllmeldung). Speichert beim Verlassen des Feldes.</p>
               <div className="mt-1 flex flex-col">
                 {(prods ?? []).filter((p) => p.active || lp.has(p.id)).map((p) => {
                   const s = lp.get(p.id);
@@ -69,6 +83,8 @@ export default async function Verkaufsstellen() {
                   );
                 })}
               </div>
+                </div>
+              </details>
               <RemoveLocation id={l.id} name={l.name} orders={orderCount(l.id)} />
             </section>
           );

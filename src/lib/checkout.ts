@@ -96,7 +96,7 @@ export async function startCashCheckout(input: CheckoutInput): Promise<Receipt> 
 /** Überweisung: Bestellung offen anlegen, Bestand buchen, Bankdaten und GiroCode zurückgeben. */
 export async function startTransferCheckout(input: CheckoutInput): Promise<Receipt> {
   const { shop, quote } = await prepare(input);
-  const bank = bankdaten();
+  const bank = await bankdaten();
   if (!shop.location.ueberweisung || !bank) throw new CheckoutError("Überweisung ist hier gerade nicht möglich.", 403);
   const order = await insertOrder(shop.location.id, "transfer", quote.lines);
   await bookStock(order.order_id);
