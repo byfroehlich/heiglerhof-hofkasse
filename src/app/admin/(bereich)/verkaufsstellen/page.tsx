@@ -1,23 +1,24 @@
-import QRCode from "qrcode";
-import { headers } from "next/headers";
+import Link from "next/link";
+import { qrSvg } from "@/lib/qr";
+import { siteUrl } from "@/lib/site";
 import { db } from "@/lib/supabase";
+import { STUFE, stufe } from "@/lib/format";
 import { reactivateLocation } from "../../actions";
 import { NewLocationForm, AssortToggle, StockInput, RemoveLocation } from "@/components/location-controls";
 
-type L = { id: string; slug: string; name: string; typ: string; ort: string | null; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number }[] };
+type L = { id: string; slug: string; name: string; typ: string; ort: string | null; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number; warn: number }[] };
 
 export default async function Verkaufsstellen() {
-  const h = await headers();
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? `https://${h.get("host")}`;
+  const base = await siteUrl();
   const [{ data: locs }, { data: prods }, { data: counts }] = await Promise.all([
-    db().from("locations").select("id, slug, name, typ, ort, active, archived_at, location_products(product_id, ist, soll)").order("name").returns<L[]>(),
+    db().from("locations").select("id, slug, name, typ, ort, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
     db().from("products").select("id, name, active").order("name"),
     db().from("orders").select("location_id"),
   ]);
   const orderCount = (id: string) => (counts ?? []).filter((o) => o.location_id === id).length;
   const active = (locs ?? []).filter((l) => l.active);
   const archived = (locs ?? []).filter((l) => !l.active);
-  const qr = Object.fromEntries(await Promise.all(active.map(async (l) => [l.id, await QRCode.toString(`${base}/kasse/${l.slug}`, { type: "svg", margin: 0, errorCorrectionLevel: "M" })])));
+  const qr = Object.fromEntries(active.map((l) => [l.id, qrSvg(`${base}/kasse/${l.slug}`)]));
 
   return (
     <>
@@ -36,9 +37,12 @@ export default async function Verkaufsstellen() {
                   <div className="text-sm text-mut">{l.ort}</div>
                   <a href={`/kasse/${l.slug}`} target="_blank" className="mt-1 inline-block break-all rounded border border-line bg-paper px-1.5 font-mono text-sm">/kasse/{l.slug}</a>
                 </div>
-                <div className="h-20 w-20 flex-none bg-paper p-1" aria-label={`QR Code für ${l.name}`} dangerouslySetInnerHTML={{ __html: qr[l.id] }} />
+                <Link href={`/admin/verkaufsstellen/${l.id}`} className="flex flex-none flex-col items-center gap-1 text-xs text-or-d underline" title="QR Code groß anzeigen und herunterladen">
+                  <span className="block h-24 w-24 rounded bg-paper" aria-label={`QR Code für ${l.name}`} dangerouslySetInnerHTML={{ __html: qr[l.id] }} />
+                  QR groß + Download
+                </Link>
               </div>
-              <p className="mt-3 text-sm text-mut">Haken setzen, dann Ist (was gerade da ist) und Soll (was da sein soll) eintragen. Speichert beim Verlassen des Feldes.</p>
+              <p className="mt-3 text-sm text-mut">Haken setzen, dann eintragen: Ist (was gerade da ist), Soll (was da sein soll) und „Warnen bei“ (ab dieser Menge oder weniger kommt eine Nachfüllmeldung). Speichert beim Verlassen des Feldes.</p>
               <div className="mt-1 flex flex-col">
                 {(prods ?? []).filter((p) => p.active || lp.has(p.id)).map((p) => {
                   const s = lp.get(p.id);
@@ -46,9 +50,11 @@ export default async function Verkaufsstellen() {
                     <div key={p.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1">
                       <AssortToggle locationId={l.id} productId={p.id} name={p.name} on={!!s} />
                       {s && (
-                        <span className="ml-auto flex items-center gap-1.5 text-sm text-mut">
+                        <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5 text-sm text-mut">
+                          {stufe(s.ist, s.warn) !== "gut" && <span className={`pill ${STUFE[stufe(s.ist, s.warn)].pill}`}>{STUFE[stufe(s.ist, s.warn)].t}</span>}
                           Ist <StockInput locationId={l.id} productId={p.id} field="ist" value={s.ist} label={`Istbestand ${p.name}`} />
                           Soll <StockInput locationId={l.id} productId={p.id} field="soll" value={s.soll} label={`Sollbestand ${p.name}`} />
+                          Warnen bei <StockInput locationId={l.id} productId={p.id} field="warn" value={s.warn} label={`Warnbestand ${p.name}`} />
                         </span>
                       )}
                     </div>

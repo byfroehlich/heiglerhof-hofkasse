@@ -43,10 +43,11 @@ export function AssortToggle({ locationId, productId, name, on }: { locationId: 
   );
 }
 
-export function StockInput({ locationId, productId, field, value, label }: { locationId: string; productId: string; field: "ist" | "soll"; value: number; label: string }) {
+export function StockInput({ locationId, productId, field, value, label }: { locationId: string; productId: string; field: "ist" | "soll" | "warn"; value: number; label: string }) {
   const [pending, start] = useTransition();
   const [v, setV] = useState(String(value));
   const [state, setState] = useState<"" | "ok" | "err">("");
+  const [msg, setMsg] = useState<string | null>(null);
   const router = useRouter();
   const save = () => {
     const n = parseInt(v);
@@ -54,17 +55,21 @@ export function StockInput({ locationId, productId, field, value, label }: { loc
     start(async () => {
       const r = await setStock(locationId, productId, field, n);
       setState(r?.error ? "err" : "ok");
+      setMsg(r?.error ?? null);
       if (r?.error) setV(String(value));
       router.refresh();
     });
   };
   return (
-    <input aria-label={label} title={state === "err" ? "Nicht gespeichert" : undefined} type="number" inputMode="numeric"
+    <>
+    <input aria-label={label} title={msg ?? undefined} type="number" inputMode="numeric"
       min={field === "soll" ? 1 : 0} max={999} value={v} disabled={pending}
-      onChange={(e) => { setV(e.target.value); setState(""); }}
+      onChange={(e) => { setV(e.target.value); setState(""); setMsg(null); }}
       onBlur={save}
       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
       className={`w-14 rounded border bg-paper px-1.5 py-1 text-right tnum ${state === "ok" ? "border-ok" : state === "err" ? "border-bad" : "border-line"}`} />
+    {msg && <span role="alert" className="basis-full text-right text-xs text-bad">{msg}</span>}
+    </>
   );
 }
 

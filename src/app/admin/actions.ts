@@ -113,7 +113,7 @@ export async function createLocation(_: FormState, form: FormData): Promise<Form
 export async function setAssortment(locationId: string, productId: string, on: boolean): Promise<FormState> {
   await requireAdmin();
   const { error } = on
-    ? await db().from("location_products").upsert({ location_id: locationId, product_id: productId, ist: 0, soll: 4 }, { onConflict: "location_id,product_id", ignoreDuplicates: true })
+    ? await db().from("location_products").upsert({ location_id: locationId, product_id: productId, ist: 0, soll: 4, warn: 1 }, { onConflict: "location_id,product_id", ignoreDuplicates: true })
     : await db().from("location_products").delete().eq("location_id", locationId).eq("product_id", productId);
   if (error) {
     console.error("[sortiment]", error.code, error.message);
@@ -124,10 +124,15 @@ export async function setAssortment(locationId: string, productId: string, on: b
   return { ok: "gespeichert" };
 }
 
-export async function setStock(locationId: string, productId: string, field: "ist" | "soll", value: number): Promise<FormState> {
+export async function setStock(locationId: string, productId: string, field: "ist" | "soll" | "warn", value: number): Promise<FormState> {
   await requireAdmin();
   const v = Math.trunc(value);
-  if (!Number.isFinite(v) || v < (field === "soll" ? 1 : 0) || v > 999) return { error: field === "soll" ? "Soll muss zwischen 1 und 999 liegen." : "Ist muss zwischen 0 und 999 liegen." };
+  if (!Number.isFinite(v) || v < (field === "soll" ? 1 : 0) || v > 999) return { error: field === "soll" ? "Soll muss zwischen 1 und 999 liegen." : "Bitte eine Zahl zwischen 0 und 999." };
+  if (field !== "ist") {
+    const { data: cur } = await db().from("location_products").select("soll, warn").eq("location_id", locationId).eq("product_id", productId).single();
+    if (cur && field === "warn" && v >= cur.soll) return { error: `Warnbestand muss kleiner als Soll (${cur.soll}) sein.` };
+    if (cur && field === "soll" && v <= cur.warn) return { error: `Soll muss größer als der Warnbestand (${cur.warn}) sein.` };
+  }
   const { error } = await db().from("location_products").update({ [field]: v }).eq("location_id", locationId).eq("product_id", productId);
   if (error) { console.error("[bestand]", error.code, error.message); return { error: "Bestand konnte nicht gespeichert werden." }; }
   revalidatePath("/admin/verkaufsstellen");
