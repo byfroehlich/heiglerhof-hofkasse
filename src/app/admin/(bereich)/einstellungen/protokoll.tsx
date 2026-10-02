@@ -1,6 +1,6 @@
 import { db } from "@/lib/supabase";
 
-const ART: Record<string, string> = { kauf: "Kauf", knapp: "Minimum", leer: "Leer", test: "Test" };
+const ART: Record<string, string> = { kauf: "Kauf", knapp: "Minimum", leer: "Leer", test: "Test", fehler: "FEHLER" };
 
 /** Die letzten Push-Mitteilungen mit Ergebnis, zur Fehlersuche. */
 export async function PushProtokoll() {
@@ -15,7 +15,7 @@ export async function PushProtokoll() {
               <div className="flex flex-wrap items-baseline gap-x-2">
                 <span className="text-mut tnum">{new Date(r.zeit).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })}</span>
                 <b>{ART[r.art] ?? r.art}</b>
-                <span className={`pill ${r.erreicht > 0 ? "bg-ok" : "bg-bad"}`}>{r.erreicht} von {r.geraete} Geräten</span>
+                {r.art !== "fehler" && <span className={`pill ${r.erreicht > 0 ? "bg-ok" : "bg-bad"}`}>{r.erreicht} von {r.geraete} Geräten</span>}
               </div>
               <div className="truncate">{r.titel}</div>
               {r.fehler && <div className="text-bad">{r.fehler}</div>}

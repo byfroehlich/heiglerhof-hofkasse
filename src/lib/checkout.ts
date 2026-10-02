@@ -5,7 +5,7 @@ import { loadShop } from "./shop";
 import { buildQuote, QuoteError, toPayPalValue } from "./pricing";
 import { createPayPalOrder, capturePayPalOrder } from "./paypal";
 import { notifyLowStock, type LowStock } from "./notify";
-import { bestandPush, kaufPush } from "./push";
+import { bestandPush, kaufPush, protokolliere } from "./push";
 import type { CheckoutInput } from "./validation";
 import { bankdaten, epcText, giroSvg, ibanLesbar } from "./giro";
 
@@ -111,8 +111,12 @@ export async function startTransferCheckout(input: CheckoutInput): Promise<Recei
 
 async function bookStock(orderId: string) {
   const { data, error } = await db().rpc("book_stock", { p_order: orderId });
-  if (error) { console.error("[bestand]", error.message); return; }
-  const low = (data ?? []) as LowStock[];
+  if (error) {
+    // Nie still scheitern: im Protokoll (Einstellungen) sichtbar machen, Kauf-Mitteilung trotzdem schicken
+    console.error("[bestand]", error.message);
+    await protokolliere("fehler", `Bestand nicht gebucht (Bestellung ${orderId.slice(0, 8)})`, `${error.code ?? ""} ${error.message}`.trim());
+  }
+  const low = (error ? [] : (data ?? [])) as LowStock[];
   await notifyLowStock(low);
   // Push-Mitteilungen direkt verschicken (ein Nachlauf nach der Antwort wurde auf Vercel nicht zuverlässig ausgeführt).
   // Höchstens 4 Sekunden warten, damit die Kasse nie hängt.

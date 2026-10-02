@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { flushSync } from "react-dom";
 import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { eur, grundpreisText, inhaltText, alkoholText } from "@/lib/format";
@@ -57,6 +58,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
   // Was gerade gebucht wird. Die Sperre (lock) greift sofort, auch bei schnellem Doppeltipp vor dem nächsten Rendern.
   const [busy, setBusy] = useState<null | "paypal" | "ueberweisung" | "bar">(null);
   const lock = useRef(false);
+  const router = useRouter();
   const sperren = (art: "paypal" | "ueberweisung" | "bar") => {
     if (lock.current) return false;
     lock.current = true;
@@ -88,7 +90,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
     if (!sperren(art)) return;
     try {
       const r = await post<Receipt>(art === "bar" ? "/api/checkout/cash" : "/api/checkout/transfer", body());
-      setDone(r); setStep("done"); setCart({});
+      setDone(r); setStep("done"); setCart({}); router.refresh(); // Bestand neu laden
     } catch (e) { setErr((e as Error).message); }
     finally { freigeben(); }
   }
@@ -132,7 +134,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
           <p className="mt-2"><b>Heiglerhof</b> · Wank 6, 87484 Nesselwang · Steffi 0176 9999 8727</p>
           <a className="btn btn-or mt-3 w-full" href="https://www.google.com/maps/search/?api=1&query=Wank+6,+87484+Nesselwang" target="_blank" rel="noopener noreferrer">Weg zum Hof</a>
         </div>
-        <button className="btn btn-ghost mt-3 w-full" onClick={() => { setStep("list"); setDone(null); setAge(false); }}>Noch etwas nehmen</button>
+        <button className="btn btn-ghost mt-3 w-full" onClick={() => { router.refresh(); setStep("list"); setDone(null); setAge(false); }}>Noch etwas nehmen</button>
         <Werbung p={partner} name={location.name} />
       </main>
     );
@@ -172,7 +174,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
                     return r.paypal_order_id;
                   }}
                   onApprove={async (data) => {
-                    try { const r = await post<Receipt>("/api/checkout/capture", { paypal_order_id: data.orderID }); setDone(r); setStep("done"); setCart({}); }
+                    try { const r = await post<Receipt>("/api/checkout/capture", { paypal_order_id: data.orderID }); setDone(r); setStep("done"); setCart({}); router.refresh(); }
                     catch (e) { setErr((e as Error).message); }
                     finally { freigeben(); }
                   }}
