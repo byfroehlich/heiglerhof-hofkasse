@@ -5,7 +5,7 @@ import { createServerClient } from "@supabase/ssr";
 // Das ist nur eine schnelle Vorprüfung: jede Admin-Seite und jede Aktion prüft selbst mit requireAdmin().
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
-  const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  const supabase = createServerClient(new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).origin, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (list) => {

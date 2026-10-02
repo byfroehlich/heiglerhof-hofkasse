@@ -17,28 +17,40 @@ function claims(key: string | undefined): { ref: string | null; role: string | n
 
 // Diagnose für die Einrichtung. Gibt keine geheimen Werte heraus.
 export async function GET() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = raw ? new URL(raw).origin : undefined;
   const urlRef = url ? new URL(url).hostname.split(".")[0] : null;
+  const urlZusatz = raw ? raw.slice(new URL(raw).origin.length) || null : null;
   const anon = claims(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   const service = claims(process.env.SUPABASE_SERVICE_ROLE_KEY);
   let authApi: number | string = "nicht geprüft";
+  let db: number | string = "nicht geprüft";
   if (url && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     try {
       const r = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY }, cache: "no-store" });
       authApi = r.status;
+      if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        const d = await fetch(`${url}/rest/v1/locations?select=id&limit=1`, {
+          headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
+          cache: "no-store",
+        });
+        db = d.status;
+      }
     } catch {
       authApi = "nicht erreichbar";
     }
   }
   const ok =
-    authApi === 200 && anon.role === "anon" && service.role === "service_role" &&
+    authApi === 200 && db === 200 && anon.role === "anon" && service.role === "service_role" &&
     (anon.ref === null || anon.ref === urlRef) && (service.ref === null || service.ref === urlRef);
   return NextResponse.json({
     ok,
     supabase_projekt_aus_url: urlRef,
+    supabase_url_zusatz: urlZusatz,
     anon_key: { projekt: anon.ref, rolle: anon.role, format: anon.format },
     service_key: { projekt: service.ref, rolle: service.role, format: service.format },
     auth_api_status: authApi,
+    datenbank_status: db,
     paypal_eingerichtet: Boolean(process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET),
   });
 }

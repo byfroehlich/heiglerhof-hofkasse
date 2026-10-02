@@ -7,7 +7,7 @@ function need(name: string): string {
 }
 
 export const env = {
-  get supabaseUrl() { return need("NEXT_PUBLIC_SUPABASE_URL"); },
+  get supabaseUrl() { return new URL(need("NEXT_PUBLIC_SUPABASE_URL")).origin; }, // ohne /rest/v1 oder Schrägstrich
   get supabaseAnonKey() { return need("NEXT_PUBLIC_SUPABASE_ANON_KEY"); },
   get supabaseServiceKey() { return need("SUPABASE_SERVICE_ROLE_KEY"); },
   get paypalClientId() { return need("NEXT_PUBLIC_PAYPAL_CLIENT_ID"); },

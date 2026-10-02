@@ -24,12 +24,13 @@ type Row = {
 
 /** Aktive Verkaufsstelle samt aktiven Produkten und Bestand, frisch aus der Datenbank. */
 export async function loadShop(slug: string): Promise<{ location: Location; products: ShopProduct[] } | null> {
-  const { data: location } = await db()
+  const { data: location, error: locError } = await db()
     .from("locations")
     .select("id, slug, name, typ, ort")
     .eq("slug", slug)
     .eq("active", true)
     .maybeSingle<Location>();
+  if (locError) throw locError;
   if (!location) return null;
 
   const { data, error } = await db()
