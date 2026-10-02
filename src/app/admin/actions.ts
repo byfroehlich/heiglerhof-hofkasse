@@ -17,7 +17,15 @@ export async function signIn(_: FormState, form: FormData): Promise<FormState> {
   if (!email || !password) return { error: "Bitte E-Mail und Passwort eingeben." };
   const supa = await authClient();
   const { error } = await supa.auth.signInWithPassword({ email, password });
-  if (error) return { error: "Anmeldung fehlgeschlagen. E-Mail oder Passwort stimmt nicht." };
+  if (error) {
+    console.error("[login]", error.status, error.code, error.message);
+    if (error.code === "email_not_confirmed")
+      return { error: "Die E-Mail-Adresse ist in Supabase noch nicht bestätigt. Unter Authentication → Users den Nutzer bestätigen oder neu mit „Auto Confirm User“ anlegen." };
+    if (error.status === 401 || /api key/i.test(error.message))
+      return { error: "Die Verbindung zu Supabase ist falsch eingerichtet (anon key). Bitte NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel prüfen." };
+    if (error.status === 429) return { error: "Zu viele Versuche. Bitte ein paar Minuten warten." };
+    return { error: "Anmeldung fehlgeschlagen. E-Mail oder Passwort stimmt nicht." };
+  }
   redirect("/admin");
 }
 
