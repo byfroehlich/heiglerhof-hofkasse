@@ -15,10 +15,14 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin/b
   const sp = await searchParams;
   const loc = typeof sp.stelle === "string" ? sp.stelle : "";
   const st = typeof sp.status === "string" && sp.status in STATUS ? sp.status : "";
+  // Suche nach Bestellnummer: „1023“, „HH 1023“ oder „HH 1023 Heiglerhof“ aus dem Kontoauszug
+  const suche = typeof sp.nr === "string" ? sp.nr.trim().slice(0, 40) : "";
+  const nr = /\d{1,9}/.exec(suche)?.[0];
   const { data: locations } = await db().from("locations").select("id, name").order("name");
   let q = db().from("orders").select("id, nr, status, total_cents, created_at, locations!inner(name), order_items(name_snapshot, quantity)").order("created_at", { ascending: false }).limit(200);
   if (loc) q = q.eq("location_id", loc);
   if (st) q = q.eq("status", st);
+  if (nr) q = q.eq("nr", Number(nr));
   const { data } = await q.returns<O[]>();
   const orders = data ?? [];
   const month = new Date(); month.setDate(1); month.setHours(0, 0, 0, 0);
@@ -26,6 +30,7 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin/b
   const { data: bestand } = await db().from("location_products").select("ist, soll, warn, locations!inner(name, active), products!inner(name, zusatz, inhalt, einheit)").eq("locations.active", true).returns<W[]>();
   const leer = (bestand ?? []).filter((r) => stufe(r.ist, r.warn) === "leer");
   const knapp = (bestand ?? []).filter((r) => stufe(r.ist, r.warn) === "knapp");
+  const { count: offen } = await db().from("orders").select("id", { count: "exact", head: true }).eq("status", "transfer");
   const sum = (s: string) => (m ?? []).filter((o) => o.status === s).reduce((a, o) => a + o.total_cents, 0);
 
   return (
@@ -41,7 +46,15 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin/b
         <div className="rounded-xl bg-cream p-3"><b className="block text-2xl tnum">{eur(sum("cash"))}</b><span className="text-sm text-mut">bar gemeldet diesen Monat</span></div>
         <div className="col-span-2 rounded-xl bg-cream p-3 md:col-span-1"><b className="block text-2xl tnum">{(m ?? []).length}</b><span className="text-sm text-mut">Käufe diesen Monat</span></div>
       </div>
-      <form className="mt-5 flex flex-wrap gap-2">
+      <div className="mt-5 flex flex-wrap gap-2">
+        <Link href="/admin/bestellungen?status=transfer" className={`btn btn-sm ${st === "transfer" ? "btn-or" : "btn-ghost"}`}>
+          Offene Überweisungen{(offen ?? 0) > 0 && <span className="pill bg-warn">{offen}</span>}
+        </Link>
+        {(st || loc || suche) && <Link href="/admin/bestellungen" className="btn btn-ghost btn-sm">Alle zeigen</Link>}
+      </div>
+      <form className="mt-2 flex flex-wrap gap-2">
+        <input name="nr" type="search" inputMode="text" defaultValue={suche} placeholder="Bestellnummer, z. B. HH 1023" aria-label="Bestellnummer suchen"
+          className="min-w-0 flex-1 basis-56 rounded-lg border border-line bg-paper px-2 py-1.5 text-[1.05rem]" />
         <select name="stelle" defaultValue={loc} className="rounded-lg border border-line bg-paper px-2 py-1.5">
           <option value="">Alle Verkaufsstellen</option>
           {(locations ?? []).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -69,7 +82,7 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin/b
                 </td>
               </tr>
             ))}
-            {orders.length === 0 && <tr><td colSpan={6} className="p-3 text-mut">Keine Bestellungen für diesen Filter.</td></tr>}
+            {orders.length === 0 && <tr><td colSpan={6} className="p-3 text-mut">{nr ? `Keine Bestellung HH ${nr} gefunden.` : "Keine Bestellungen für diesen Filter."}</td></tr>}
           </tbody>
         </table>
       </div>
