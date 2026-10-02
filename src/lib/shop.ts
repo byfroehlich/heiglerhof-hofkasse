@@ -1,6 +1,6 @@
 import "server-only";
 import { db, fotoUrl, partnerUrl } from "./supabase";
-import { inhaltText, type Einheit } from "./format";
+import { produktLabel, type Einheit } from "./format";
 import type { StockedProduct } from "./pricing";
 import { bankdaten } from "./giro";
 
@@ -49,7 +49,7 @@ export async function loadShop(slug: string): Promise<{ location: Location; part
     .map(({ ist, products: p }) => ({
       id: p.id,
       name: p.name,
-      label: `${p.name} ${inhaltText(p.inhalt, p.einheit)}`,
+      label: produktLabel(p), // mit Zusatz, damit gleichnamige Produkte unterscheidbar sind (auch bei PayPal)
       price_cents: p.price_cents,
       ist,
       alkohol: p.alkohol_vol != null,
