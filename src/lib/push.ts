@@ -53,6 +53,11 @@ export async function sendePush(art: PushArt | null, n: Nachricht, nurEndpoint?:
   }
 }
 
+/** Fehler aus anderen Bereichen (z. B. Bestandsbuchung) ins selbe Protokoll schreiben. */
+export async function protokolliere(art: string, titel: string, fehler: string) {
+  try { await db().from("push_protokoll").insert({ art, titel: titel.slice(0, 200), fehler: fehler.slice(0, 300) }); } catch { /* egal */ }
+}
+
 /** Jede Mitteilung wird protokolliert (Einstellungen → Letzte Mitteilungen). Fehler hier stören nie. */
 async function protokoll(art: PushArt | null, titel: string, geraete: number, erreicht: number, fehler: string | null) {
   try {

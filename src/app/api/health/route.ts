@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { db as datenbank } from "@/lib/supabase";
 import { paypalAnmeldung } from "@/lib/paypal";
 import { rateLimited } from "@/lib/http";
 
@@ -43,6 +44,20 @@ export async function GET(req: Request) {
       authApi = "nicht erreichbar";
     }
   }
+  // Sind alle SQL-Schritte in der Datenbank angekommen? (je Schritt eine Spalte, die er anlegt)
+  const schritte: [string, string, string][] = [
+    ["0002", "location_products", "warn"], ["0003", "stock_alerts", "stufe"], ["0004", "locations", "lat"],
+    ["0005", "locations", "ueberweisung_aktiv"], ["0006", "einstellungen", "iban"], ["0007", "push_abos", "endpoint"], ["0008", "push_protokoll", "zeit"],
+  ];
+  let migrationen: string[] | string = "nicht geprüft";
+  let ungebucht: number | string = "nicht geprüft";
+  if (url && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const fehlt = await Promise.all(schritte.map(async ([n, t, c]) => ((await datenbank().from(t).select(c).limit(1)).error ? n : null)));
+    migrationen = fehlt.filter((x): x is string => x !== null);
+    const { count } = await datenbank().from("orders").select("id", { count: "exact", head: true })
+      .eq("stock_booked", false).in("status", ["paid", "cash", "transfer", "transfer_paid"]);
+    ungebucht = count ?? "unbekannt";
+  }
   const paypalDa = Boolean(process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET);
   const ok =
     authApi === 200 && db === 200 && anon.role === "anon" && service.role === "service_role" &&
@@ -55,6 +70,8 @@ export async function GET(req: Request) {
     service_key: { projekt: service.ref, rolle: service.role, format: service.format },
     auth_api_status: authApi,
     datenbank_status: db,
+    sql_schritte_fehlen: migrationen,
+    kaeufe_ohne_bestandsbuchung: ungebucht,
     paypal_eingerichtet: paypalDa,
     paypal_modus: (process.env.PAYPAL_API_BASE || "https://api-m.sandbox.paypal.com").includes("sandbox") ? "sandbox (Testgeld)" : "live (echtes Geld)",
     paypal_anmeldung: paypalDa ? await paypalAnmeldung() : "nicht geprüft",

@@ -98,9 +98,9 @@ export default async function Verkaufsstellen() {
                       {s && (
                         <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5 text-sm text-mut">
                           {stufe(s.ist, s.warn) !== "gut" && <span className={`pill ${STUFE[stufe(s.ist, s.warn)].pill}`}>{STUFE[stufe(s.ist, s.warn)].t}</span>}
-                          Ist <StockInput locationId={l.id} productId={p.id} field="ist" value={s.ist} label={`Istbestand ${produktLabel({ ...p, einheit: p.einheit as Einheit })}`} />
-                          Soll <StockInput locationId={l.id} productId={p.id} field="soll" value={s.soll} label={`Sollbestand ${produktLabel({ ...p, einheit: p.einheit as Einheit })}`} />
-                          Warnen bei <StockInput locationId={l.id} productId={p.id} field="warn" value={s.warn} label={`Warnbestand ${produktLabel({ ...p, einheit: p.einheit as Einheit })}`} />
+                          Ist <StockInput key={`ist-${s.ist}`} locationId={l.id} productId={p.id} field="ist" value={s.ist} label={`Istbestand ${produktLabel({ ...p, einheit: p.einheit as Einheit })}`} />
+                          Soll <StockInput key={`soll-${s.soll}`} locationId={l.id} productId={p.id} field="soll" value={s.soll} label={`Sollbestand ${produktLabel({ ...p, einheit: p.einheit as Einheit })}`} />
+                          Warnen bei <StockInput key={`warn-${s.warn}`} locationId={l.id} productId={p.id} field="warn" value={s.warn} label={`Warnbestand ${produktLabel({ ...p, einheit: p.einheit as Einheit })}`} />
                         </span>
                       )}
                     </div>
