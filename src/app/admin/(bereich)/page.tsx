@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { db } from "@/lib/supabase";
 import { eur, stufe } from "@/lib/format";
+import { markTransferPaid } from "../actions";
 
 const STATUS: Record<string, { t: string; c: string }> = {
   paid: { t: "bezahlt", c: "bg-ok" }, cash: { t: "bar", c: "bg-[#5b6f83]" }, created: { t: "offen", c: "bg-[#9a948a]" },
-  review: { t: "prüfen", c: "bg-warn" }, refunded: { t: "erstattet", c: "bg-[#7a5c9a]" }, cancelled: { t: "abgebrochen", c: "bg-[#bbb]" },
+  review: { t: "prüfen", c: "bg-warn" }, transfer: { t: "Überweisung offen", c: "bg-warn" }, transfer_paid: { t: "überwiesen", c: "bg-ok" }, refunded: { t: "erstattet", c: "bg-[#7a5c9a]" }, cancelled: { t: "abgebrochen", c: "bg-[#bbb]" },
 };
 
 type W = { ist: number; soll: number; warn: number; locations: { name: string }; products: { name: string } };
@@ -21,7 +22,7 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin">
   const { data } = await q.returns<O[]>();
   const orders = data ?? [];
   const month = new Date(); month.setDate(1); month.setHours(0, 0, 0, 0);
-  const { data: m } = await db().from("orders").select("status, total_cents").in("status", ["paid", "cash"]).gte("created_at", month.toISOString());
+  const { data: m } = await db().from("orders").select("status, total_cents").in("status", ["paid", "cash", "transfer_paid"]).gte("created_at", month.toISOString());
   const { data: bestand } = await db().from("location_products").select("ist, soll, warn, locations!inner(name, active), products!inner(name)").eq("locations.active", true).returns<W[]>();
   const leer = (bestand ?? []).filter((r) => stufe(r.ist, r.warn) === "leer");
   const knapp = (bestand ?? []).filter((r) => stufe(r.ist, r.warn) === "knapp");
@@ -62,14 +63,17 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin">
                 <td className="p-2">{o.locations.name}</td>
                 <td className="p-2">{o.order_items.map((i) => (i.quantity > 1 ? `${i.quantity} × ` : "") + i.name_snapshot).join(", ")}</td>
                 <td className="p-2 text-right">{eur(o.total_cents)}</td>
-                <td className="p-2"><span className={`pill ${STATUS[o.status]?.c}`}>{STATUS[o.status]?.t ?? o.status}</span></td>
+                <td className="p-2">
+                  <span className={`pill ${STATUS[o.status]?.c}`}>{STATUS[o.status]?.t ?? o.status}</span>
+                  {o.status === "transfer" && <form action={markTransferPaid.bind(null, o.id)} className="mt-1"><button className="btn btn-ghost btn-sm">Geld ist da</button></form>}
+                </td>
               </tr>
             ))}
             {orders.length === 0 && <tr><td colSpan={6} className="p-3 text-mut">Keine Bestellungen für diesen Filter.</td></tr>}
           </tbody>
         </table>
       </div>
-      <p className="mt-3 text-sm text-mut">„offen“: PayPal geöffnet, aber nicht bezahlt. Wird nach 24 Stunden zu „abgebrochen“. „prüfen“: Betrag von PayPal passt nicht zur Bestellung, bitte im PayPal-Konto nachsehen. <Link className="underline" href="/admin/abrechnung">Zur Abrechnung</Link></p>
+      <p className="mt-3 text-sm text-mut">„offen“: PayPal geöffnet, aber nicht bezahlt. Wird nach 24 Stunden zu „abgebrochen“. „prüfen“: Betrag von PayPal passt nicht zur Bestellung, bitte im PayPal-Konto nachsehen. „Überweisung offen“: Gast will überweisen; kommt das Geld mit der Bestellnummer im Verwendungszweck an, „Geld ist da“ tippen. <Link className="underline" href="/admin/abrechnung">Zur Abrechnung</Link></p>
     </>
   );
 }

@@ -12,6 +12,7 @@ export type SchildDaten = {
   url: string;
   bar: boolean;
   paypal: boolean;
+  ueberweisung: boolean;
   alkohol: boolean;
 };
 
@@ -22,14 +23,20 @@ const W = 595.28, H = 841.89, M = 42; // A4 in Punkt, Rand 15 mm
 
 /** Texte fürs Schild. Ohne Bindestriche, herzlich und ein bisschen Allgäu. */
 export function schildTexte(d: SchildDaten) {
-  const schritt3 = d.paypal
+  const nurUe = !d.paypal && !d.bar;
+  const schritt3 = nurUe
+    ? { t: "Überweisen", x: "IBAN, Betrag und Zweck kopieren und in der Banking App einfügen." }
+    : d.paypal
     ? { t: "Bezahlen", x: "Mit PayPal, in Sekunden erledigt und ganz ohne Kleingeld." }
     : { t: "Bar zahlen", x: "Betrag im Handy bestätigen und das Geld in die Kasse legen." };
-  const box = d.paypal && d.bar
+  const box: { t: string; x: string; klein: string } = nurUe
+    ? { t: "Bezahlt wird per Überweisung", x: "Nach der Auswahl zeigt euch das Handy alle Angaben zum Kopieren. Bitte den Verwendungszweck genau so übernehmen.", klein: "" }
+    : d.paypal && d.bar
     ? { t: "Am schnellsten mit PayPal", x: "Sicher, kontaktlos und ihr braucht kein passendes Kleingeld. Uns hilft es sehr, wenn ihr so zahlt.", klein: "Bar geht auch: im Handy „bar“ antippen und das Geld in die Kasse legen." }
     : d.paypal
       ? { t: "Bezahlt wird mit PayPal", x: "Sicher, kontaktlos und ohne Kleingeld. Ihr braucht nur euer Handy und ein Konto bei PayPal.", klein: "" }
       : { t: "Bezahlt wird bar", x: "Kurz im Handy bestätigen, dann das Geld in die Kasse legen. So wissen wir, was wir nachfüllen müssen.", klein: "" };
+  if (d.ueberweisung && !nurUe) box.klein = [box.klein, "Überweisung mit der Banking App geht auch."].filter(Boolean).join(" ");
   const kopf = d.typ === "Verkaufskasten" ? "Selbstbedienung an unserer Hoftür" : d.typ === "Hotel" ? "Für unsere Gäste hier im Haus" : d.typ === "Ferienwohnung" ? "Für euch hier in der Ferienwohnung" : "Hier für euch zum Mitnehmen";
   return {
     kopf,

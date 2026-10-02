@@ -5,12 +5,14 @@ import { buildQuote, QuoteError, toPayPalValue } from "./pricing";
 import { createPayPalOrder, capturePayPalOrder } from "./paypal";
 import { notifyLowStock, type LowStock } from "./notify";
 import type { CheckoutInput } from "./validation";
+import { bankdaten, epcText, giroSvg, ibanLesbar } from "./giro";
 
 export class CheckoutError extends Error {
   constructor(message: string, public status = 400) { super(message); }
 }
 
-export type Receipt = { nr: number; total_cents: number; status: "paid" | "cash" | "review"; items: { label: string; quantity: number; unit_price_cents: number }[] };
+export type Ueberweisung = { empfaenger: string; iban: string; bic: string; betrag_cents: number; zweck: string; qr: string };
+export type Receipt = { ueberweisung?: Ueberweisung; nr: number; total_cents: number; status: "paid" | "cash" | "review" | "transfer"; items: { label: string; quantity: number; unit_price_cents: number }[] };
 
 async function prepare(input: CheckoutInput) {
   const shop = await loadShop(input.location);
@@ -26,7 +28,7 @@ async function prepare(input: CheckoutInput) {
   return { shop, quote };
 }
 
-async function insertOrder(locationId: string, status: "created" | "cash", lines: { product_id: string; unit_price_cents: number; quantity: number }[]) {
+async function insertOrder(locationId: string, status: "created" | "cash" | "transfer", lines: { product_id: string; unit_price_cents: number; quantity: number }[]) {
   const { data, error } = await db().rpc("create_order", { p_location: locationId, p_status: status, p_items: lines });
   if (error) {
     if (/preis geaendert|bestand|nicht verfuegbar/.test(error.message)) throw new CheckoutError("Das Angebot hat sich gerade geändert. Bitte neu laden.", 409);
@@ -89,6 +91,20 @@ export async function startCashCheckout(input: CheckoutInput): Promise<Receipt> 
   const order = await insertOrder(shop.location.id, "cash", quote.lines);
   await bookStock(order.order_id);
   return receipt(order.order_id);
+}
+
+/** Überweisung: Bestellung offen anlegen, Bestand buchen, Bankdaten und GiroCode zurückgeben. */
+export async function startTransferCheckout(input: CheckoutInput): Promise<Receipt> {
+  const { shop, quote } = await prepare(input);
+  const bank = bankdaten();
+  if (!shop.location.ueberweisung || !bank) throw new CheckoutError("Überweisung ist hier gerade nicht möglich.", 403);
+  const order = await insertOrder(shop.location.id, "transfer", quote.lines);
+  await bookStock(order.order_id);
+  const zweck = `HH ${order.order_nr} Heiglerhof`;
+  return {
+    ...(await receipt(order.order_id)),
+    ueberweisung: { empfaenger: bank.empfaenger, iban: ibanLesbar(bank.iban), bic: bank.bic, betrag_cents: order.total, zweck, qr: giroSvg(epcText(bank, order.total, zweck)) },
+  };
 }
 
 async function bookStock(orderId: string) {

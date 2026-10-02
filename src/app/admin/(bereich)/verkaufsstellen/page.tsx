@@ -3,15 +3,17 @@ import { qrSvg } from "@/lib/qr";
 import { siteUrl } from "@/lib/site";
 import { db } from "@/lib/supabase";
 import { STUFE, stufe } from "@/lib/format";
+import { bankdaten } from "@/lib/giro";
 import { reactivateLocation } from "../../actions";
 import { NewLocationForm, AssortToggle, StockInput, RemoveLocation, Zahlarten } from "@/components/location-controls";
 
-type L = { id: string; slug: string; name: string; typ: string; ort: string | null; strasse: string | null; plz: string | null; lat: number | null; oeffentlich: boolean; bar_aktiv: boolean; paypal_aktiv: boolean; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number; warn: number }[] };
+type L = { id: string; slug: string; name: string; typ: string; ort: string | null; strasse: string | null; plz: string | null; lat: number | null; oeffentlich: boolean; bar_aktiv: boolean; paypal_aktiv: boolean; ueberweisung_aktiv: boolean; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number; warn: number }[] };
 
 export default async function Verkaufsstellen() {
   const base = await siteUrl();
+  const ueMoeglich = bankdaten() !== null;
   const [{ data: locs }, { data: prods }, { data: counts }] = await Promise.all([
-    db().from("locations").select("id, slug, name, typ, ort, strasse, plz, lat, oeffentlich, bar_aktiv, paypal_aktiv, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
+    db().from("locations").select("id, slug, name, typ, ort, strasse, plz, lat, oeffentlich, bar_aktiv, paypal_aktiv, ueberweisung_aktiv, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
     db().from("products").select("id, name, active").order("name"),
     db().from("orders").select("location_id"),
   ]);
@@ -47,7 +49,7 @@ export default async function Verkaufsstellen() {
                   Bearbeiten · QR
                 </Link>
               </div>
-              <Zahlarten locationId={l.id} bar={l.bar_aktiv} paypal={l.paypal_aktiv} />
+              <Zahlarten locationId={l.id} bar={l.bar_aktiv} paypal={l.paypal_aktiv} ueberweisung={l.ueberweisung_aktiv} ueMoeglich={ueMoeglich} />
               <p className="mt-3 text-sm text-mut">Haken setzen, dann eintragen: Ist (was gerade da ist), Soll (was da sein soll) und „Warnen bei“ (ab dieser Menge oder weniger kommt eine Nachfüllmeldung). Speichert beim Verlassen des Feldes.</p>
               <div className="mt-1 flex flex-col">
                 {(prods ?? []).filter((p) => p.active || lp.has(p.id)).map((p) => {

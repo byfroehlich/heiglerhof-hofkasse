@@ -93,5 +93,15 @@ describe("Zahlarten", () => {
     await q(`update locations set bar_aktiv=false where id=$1`, [loc]);
     await expect(q(`update locations set paypal_aktiv=false where id=$1`, [loc])).rejects.toThrow();
     await q(`update locations set bar_aktiv=true where id=$1`, [loc]);
+    expect((await q<{ u: boolean }>(`select ueberweisung_aktiv u from locations where id=$1`, [loc]))[0].u).toBe(false);
+  });
+  it("Überweisung legt eine offene Bestellung an und bucht den Bestand", async () => {
+    await q(`update location_products set ist=5 where product_id=$1`, [ho]);
+    const [o] = await order("transfer", [{ product_id: ho, unit_price_cents: 650, quantity: 2 }]);
+    expect((await q<{ status: string; paid_at: string | null }>(`select status, paid_at from orders where id=$1`, [o.order_id]))[0]).toEqual({ status: "transfer", paid_at: null });
+    await q(`select * from book_stock($1)`, [o.order_id]);
+    expect((await q<{ ist: number }>(`select ist from location_products where product_id=$1`, [ho]))[0].ist).toBe(3);
+    await q(`update orders set status='transfer_paid' where id=$1`, [o.order_id]);
+    await expect(q(`update orders set status='quatsch' where id=$1`, [o.order_id])).rejects.toThrow();
   });
 });

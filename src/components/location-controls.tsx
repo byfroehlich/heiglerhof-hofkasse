@@ -93,14 +93,18 @@ export function RemoveLocation({ id, name, orders }: { id: string; name: string;
   );
 }
 
-export function Zahlarten({ locationId, bar, paypal }: { locationId: string; bar: boolean; paypal: boolean }) {
-  const [state, setState] = useState({ bar, paypal });
+type Art = "paypal" | "bar" | "ueberweisung";
+const ART_NAME: Record<Art, string> = { paypal: "PayPal", bar: "Bar", ueberweisung: "Überweisung" };
+
+export function Zahlarten({ locationId, bar, paypal, ueberweisung, ueMoeglich }: { locationId: string; bar: boolean; paypal: boolean; ueberweisung: boolean; ueMoeglich: boolean }) {
+  const [state, setState] = useState<Record<Art, boolean>>({ paypal, bar, ueberweisung });
   const [err, setErr] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const router = useRouter();
-  const toggle = (art: "bar" | "paypal") => {
+  const toggle = (art: Art) => {
     const v = !state[art];
-    if (!v && !state[art === "bar" ? "paypal" : "bar"]) { setErr("Mindestens eine Zahlart muss an bleiben."); return; }
+    if (!v && !(Object.keys(state) as Art[]).some((k) => k !== art && state[k])) { setErr("Mindestens eine Zahlart muss an bleiben."); return; }
+    if (v && art === "ueberweisung" && !ueMoeglich) { setErr("Erst IBAN und Empfänger in Vercel eintragen (ZAHLUNG_IBAN, ZAHLUNG_EMPFAENGER)."); return; }
     setState((s) => ({ ...s, [art]: v })); setErr(null);
     start(async () => {
       const r = await setZahlart(locationId, art, v);
@@ -112,13 +116,13 @@ export function Zahlarten({ locationId, bar, paypal }: { locationId: string; bar
     <div className="mt-3 rounded-lg bg-paper p-2">
       <div className="text-sm text-mut">Zahlarten an dieser Stelle</div>
       <div className="mt-1 flex flex-wrap gap-2">
-        {(["paypal", "bar"] as const).map((art) => (
+        {(["paypal", "bar", "ueberweisung"] as const).map((art) => (
           <button key={art} type="button" role="switch" aria-checked={state[art]} disabled={pending} onClick={() => toggle(art)}
             className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[15px] font-semibold ${state[art] ? "border-ok bg-[#e6f0df] text-ok" : "border-line bg-cream text-mut"}`}>
             <span className={`relative h-5 w-9 rounded-full transition ${state[art] ? "bg-ok" : "bg-[#cfc6b6]"}`}>
               <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${state[art] ? "left-[18px]" : "left-0.5"}`} />
             </span>
-            {art === "paypal" ? "PayPal" : "Bar"} {state[art] ? "an" : "aus"}
+            {ART_NAME[art]} {state[art] ? "an" : "aus"}
           </button>
         ))}
       </div>

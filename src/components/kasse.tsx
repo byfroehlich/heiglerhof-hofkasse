@@ -6,6 +6,7 @@ import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { eur, grundpreisText, inhaltText, alkoholText } from "@/lib/format";
 import type { Location, Partner, ShopProduct } from "@/lib/shop";
 import type { Receipt } from "@/lib/checkout";
+import { UeberweisungInfo } from "./ueberweisung";
 
 type Props = { location: Location; partner: Partner; products: ShopProduct[]; paypalClientId: string };
 type Step = "list" | "sum" | "done";
@@ -73,6 +74,13 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
     return j as T;
   }
 
+  async function payTransfer() {
+    setBusy(true); setErr(null);
+    try { const r = await post<Receipt>("/api/checkout/transfer", body()); setDone(r); setStep("done"); setCart({}); }
+    catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
   async function payCash() {
     setBusy(true); setErr(null);
     try { const r = await post<Receipt>("/api/checkout/cash", body()); setDone(r); setStep("done"); setCart({}); }
@@ -96,9 +104,10 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
         <div className="mx-auto mt-10 grid h-20 w-20 place-items-center rounded-full bg-ok text-4xl text-white">✓</div>
         <h1 className="mt-4 font-brush text-5xl text-or">Vergelt&apos;s Gott!</h1>
         <p className="mt-2 text-xl">
-          {done.status === "cash" ? `Danke fürs Vertrauen · ${eur(done.total_cents)} in die Kasse` : done.status === "paid" ? `Zahlung eingegangen · ${eur(done.total_cents)}` : `Zahlung wird geprüft · ${eur(done.total_cents)}`}
+          {done.status === "cash" ? `Danke fürs Vertrauen · ${eur(done.total_cents)} in die Kasse` : done.status === "transfer" ? `Fast fertig · bitte ${eur(done.total_cents)} überweisen` : done.status === "paid" ? `Zahlung eingegangen · ${eur(done.total_cents)}` : `Zahlung wird geprüft · ${eur(done.total_cents)}`}
         </p>
         <p className="text-sm text-mut">Bestellung HH {done.nr}</p>
+        {done.ueberweisung && <UeberweisungInfo u={done.ueberweisung} />}
         <div className="mt-6 rounded-xl bg-cream p-4 text-left">
           {done.items.map((i) => (
             <div key={i.label} className="flex justify-between py-1 tnum"><span>{i.quantity} × {i.label}</span><span>{eur(i.unit_price_cents * i.quantity)}</span></div>
@@ -163,6 +172,11 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
               <div className="rounded-xl bg-cream p-3 text-mut">PayPal ist noch nicht eingerichtet.</div>
             )}
           </div>}
+          {location.ueberweisung && (
+            <button className={`btn mt-2 w-full ${location.paypal ? "btn-ghost" : "btn-or"}`} disabled={blocked || busy} onClick={payTransfer}>
+              Per Überweisung mit der Banking App
+            </button>
+          )}
           {location.bar && (
             <button className={`btn mt-2 w-full ${location.paypal ? "btn-ghost" : "btn-or mt-5"}`} disabled={blocked || busy} onClick={payCash}>
               Ich lege {eur(preview)} bar in die Kasse
