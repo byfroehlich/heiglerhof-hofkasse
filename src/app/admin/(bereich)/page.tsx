@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { db } from "@/lib/supabase";
-import { eur } from "@/lib/format";
+import { eur, stufe } from "@/lib/format";
 
 const STATUS: Record<string, { t: string; c: string }> = {
   paid: { t: "bezahlt", c: "bg-ok" }, cash: { t: "bar", c: "bg-[#5b6f83]" }, created: { t: "offen", c: "bg-[#9a948a]" },
   review: { t: "prüfen", c: "bg-warn" }, refunded: { t: "erstattet", c: "bg-[#7a5c9a]" }, cancelled: { t: "abgebrochen", c: "bg-[#bbb]" },
 };
 
+type W = { ist: number; soll: number; warn: number; locations: { name: string }; products: { name: string } };
 type O = { id: string; nr: number; status: string; total_cents: number; created_at: string; locations: { name: string }; order_items: { name_snapshot: string; quantity: number }[] };
 
 export default async function Bestellungen({ searchParams }: PageProps<"/admin">) {
@@ -21,10 +22,17 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin">
   const orders = data ?? [];
   const month = new Date(); month.setDate(1); month.setHours(0, 0, 0, 0);
   const { data: m } = await db().from("orders").select("status, total_cents").in("status", ["paid", "cash"]).gte("created_at", month.toISOString());
+  const { data: bestand } = await db().from("location_products").select("ist, soll, warn, locations!inner(name, active), products!inner(name)").eq("locations.active", true).returns<W[]>();
+  const leer = (bestand ?? []).filter((r) => stufe(r.ist, r.warn) === "leer");
+  const knapp = (bestand ?? []).filter((r) => stufe(r.ist, r.warn) === "knapp");
   const sum = (s: string) => (m ?? []).filter((o) => o.status === s).reduce((a, o) => a + o.total_cents, 0);
 
   return (
     <>
+      <div className="mb-5 grid gap-3 md:grid-cols-2">
+        <Warnung farbe="bad" titel="Leer" leer="Nirgends leer." rows={leer} />
+        <Warnung farbe="warn" titel="Minimum erreicht" leer="Nirgends knapp." rows={knapp} />
+      </div>
       <h1 className="text-3xl font-bold">Bestellungen</h1>
       <p className="font-txt text-mut">Neue Zahlungen erscheinen hier, sobald der Server sie bei PayPal bestätigt hat.</p>
       <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -63,5 +71,23 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin">
       </div>
       <p className="mt-3 text-sm text-mut">„offen“: PayPal geöffnet, aber nicht bezahlt. Wird nach 24 Stunden zu „abgebrochen“. „prüfen“: Betrag von PayPal passt nicht zur Bestellung, bitte im PayPal-Konto nachsehen. <Link className="underline" href="/admin/abrechnung">Zur Abrechnung</Link></p>
     </>
+  );
+}
+
+function Warnung({ farbe, titel, leer, rows }: { farbe: "bad" | "warn"; titel: string; leer: string; rows: W[] }) {
+  const aktiv = rows.length > 0;
+  return (
+    <Link href="/admin/nachfuellen" className={`block rounded-xl border-l-8 p-3 ${aktiv ? (farbe === "bad" ? "border-bad bg-[#f8e3e1]" : "border-warn bg-[#f7edd3]") : "border-ok bg-cream"}`}>
+      <div className="flex items-baseline justify-between gap-2">
+        <b className="text-lg">{titel}</b>
+        <span className={`pill ${aktiv ? (farbe === "bad" ? "bg-bad" : "bg-warn") : "bg-ok"}`}>{rows.length}</span>
+      </div>
+      {aktiv ? (
+        <ul className="mt-1 text-sm">
+          {rows.slice(0, 6).map((r, i) => <li key={i}>{r.locations.name}: {r.products.name} <span className="tnum text-mut">{r.ist} / {r.soll}</span></li>)}
+          {rows.length > 6 && <li className="text-mut">und {rows.length - 6} weitere</li>}
+        </ul>
+      ) : <p className="mt-1 text-sm text-mut">{leer}</p>}
+    </Link>
   );
 }

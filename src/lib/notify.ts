@@ -6,7 +6,10 @@ export type LowStock = { location_name: string; product_name: string; ist: numbe
 /** Nachfüllmeldung per E-Mail (Resend). Ohne Konfiguration nur ins Log. Fehler brechen die Zahlung nie ab. */
 export async function notifyLowStock(rows: LowStock[]): Promise<void> {
   if (rows.length === 0) return;
-  const lines = rows.map((r) => `${r.location_name}: ${r.product_name} nur noch ${r.ist} von ${r.soll}. Bitte ${r.soll - r.ist} nachfüllen.`);
+  const lines = rows.map((r) => r.ist < 1
+    ? `LEER: ${r.location_name}: ${r.product_name} ist aus. Bitte ${r.soll} nachfüllen.`
+    : `Minimum erreicht: ${r.location_name}: ${r.product_name} nur noch ${r.ist} von ${r.soll}. Bitte ${r.soll - r.ist} nachfüllen.`);
+  const prefix = rows.some((r) => r.ist < 1) ? "LEER" : "Nachfüllen";
   if (!env.resendKey || !env.notifyTo) {
     console.info("[nachfuellen]", lines.join(" | "));
     return;
@@ -18,7 +21,7 @@ export async function notifyLowStock(rows: LowStock[]): Promise<void> {
       body: JSON.stringify({
         from: env.notifyFrom,
         to: env.notifyTo.split(",").map((s) => s.trim()),
-        subject: rows.length === 1 ? `Nachfüllen: ${rows[0].product_name} in ${rows[0].location_name}` : `Nachfüllen: ${rows.length} Produkte`,
+        subject: rows.length === 1 ? `${prefix}: ${rows[0].product_name} in ${rows[0].location_name}` : `${prefix}: ${rows.length} Produkte`,
         text: lines.join("\n") + "\n\nÜbersicht: /admin/nachfuellen",
       }),
     });

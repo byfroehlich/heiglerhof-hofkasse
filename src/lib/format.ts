@@ -20,6 +20,15 @@ export const alkoholText = (vol: number | null) =>
 /** Meldebestand: 30 % vom Soll, mindestens 1. Muss zu book_stock() in der Datenbank passen. */
 export const meldebestand = (soll: number) => Math.max(1, Math.ceil(soll * 0.3));
 
+/** Warnstufe eines Bestands: rot = leer, gelb = Minimum (Warnbestand) erreicht. */
+export type Stufe = "leer" | "knapp" | "gut";
+export const stufe = (ist: number, warn: number): Stufe => (ist < 1 ? "leer" : ist <= warn ? "knapp" : "gut");
+export const STUFE: Record<Stufe, { t: string; pill: string; bar: string }> = {
+  leer: { t: "leer", pill: "bg-bad", bar: "bg-bad" },
+  knapp: { t: "Minimum erreicht", pill: "bg-warn", bar: "bg-warn" },
+  gut: { t: "gut", pill: "bg-ok", bar: "bg-ok" },
+};
+
 export function slugify(text: string): string {
   return (
     text

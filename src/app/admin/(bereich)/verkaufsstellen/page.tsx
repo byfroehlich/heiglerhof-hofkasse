@@ -2,6 +2,7 @@ import Link from "next/link";
 import { qrSvg } from "@/lib/qr";
 import { siteUrl } from "@/lib/site";
 import { db } from "@/lib/supabase";
+import { STUFE, stufe } from "@/lib/format";
 import { reactivateLocation } from "../../actions";
 import { NewLocationForm, AssortToggle, StockInput, RemoveLocation } from "@/components/location-controls";
 
@@ -50,6 +51,7 @@ export default async function Verkaufsstellen() {
                       <AssortToggle locationId={l.id} productId={p.id} name={p.name} on={!!s} />
                       {s && (
                         <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5 text-sm text-mut">
+                          {stufe(s.ist, s.warn) !== "gut" && <span className={`pill ${STUFE[stufe(s.ist, s.warn)].pill}`}>{STUFE[stufe(s.ist, s.warn)].t}</span>}
                           Ist <StockInput locationId={l.id} productId={p.id} field="ist" value={s.ist} label={`Istbestand ${p.name}`} />
                           Soll <StockInput locationId={l.id} productId={p.id} field="soll" value={s.soll} label={`Sollbestand ${p.name}`} />
                           Warnen bei <StockInput locationId={l.id} productId={p.id} field="warn" value={s.warn} label={`Warnbestand ${p.name}`} />
