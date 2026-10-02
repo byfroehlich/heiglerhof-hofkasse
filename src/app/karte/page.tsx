@@ -3,6 +3,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { db, partnerUrl } from "@/lib/supabase";
 import { Karte, type KartenPunkt } from "@/components/karte";
+import { HOF } from "@/lib/hof";
+import { km } from "@/lib/route";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -36,6 +38,10 @@ export default async function KartePage() {
     id: l.id, lat: l.lat, lng: l.lng, titel: l.name, zeile: l.adresse, farbe: "or",
     link: { href: `#${l.id}`, text: "Was gibt's dort?" },
   }));
+  // Der Hof ist immer auf der Karte, außer eine Verkaufsstelle steht schon dort (Verkaufskasten an der Hoftür)
+  if (!stellen.some((l) => km(l, HOF) < 0.15))
+    punkte.unshift({ id: "hof", lat: HOF.lat, lng: HOF.lng, titel: HOF.name, zeile: `${HOF.adresse} · Verkaufskasten an der Hoftür`, farbe: "hof",
+      link: { href: `https://www.google.com/maps/dir/?api=1&destination=${HOF.lat},${HOF.lng}`, text: "Route dorthin" } });
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 pb-16 pt-5 md:px-8">
@@ -47,9 +53,7 @@ export default async function KartePage() {
         </div>
       </header>
       <div className="mt-5">
-        {punkte.length > 0
-          ? <Karte punkte={punkte} className="h-[55vh] min-h-[320px]" />
-          : <p className="rounded-xl bg-cream p-4">Die Karte wird gerade eingerichtet. Schaut bald wieder vorbei.</p>}
+        <Karte punkte={punkte} className="h-[55vh] min-h-[320px]" />
       </div>
       <ul className="mt-6 grid gap-4 md:grid-cols-2">
         {stellen.map((l) => (
