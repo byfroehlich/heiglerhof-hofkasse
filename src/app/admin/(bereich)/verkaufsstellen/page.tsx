@@ -39,6 +39,7 @@ export default async function Verkaufsstellen() {
                     {l.lat == null ? <span className="pill bg-warn">kein Kartenpunkt</span> : l.oeffentlich ? <span className="pill bg-ok">auf der Karte</span> : <span className="pill bg-[#9a948a]">nicht öffentlich</span>}
                   </div>
                   <Link href={`/admin/verkaufsstellen/${l.id}`} className="btn btn-ghost btn-sm mt-1 mr-1">Adresse und Partner</Link>
+                  <a href={`/admin/schild/${l.id}?download=1`} download className="btn btn-ghost btn-sm mt-1 mr-1">Schild A4 (PDF)</a>
                   <a href={`/kasse/${l.slug}`} target="_blank" className="mt-1 inline-block break-all rounded border border-line bg-paper px-1.5 font-mono text-sm">/kasse/{l.slug}</a>
                 </div>
                 <Link href={`/admin/verkaufsstellen/${l.id}`} className="flex flex-none flex-col items-center gap-1 text-xs text-or-d underline" title="Bearbeiten: Adresse, Karte, Partner, QR Code">

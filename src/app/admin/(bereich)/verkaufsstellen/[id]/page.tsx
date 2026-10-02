@@ -29,6 +29,16 @@ export default async function VerkaufsstelleBearbeiten({ params }: PageProps<"/a
         werbung_text: l.werbung_text ?? "", werbung_link: l.werbung_link ?? "",
       }} />
 
+      <h2 id="schild" className="mt-10 text-2xl font-bold">Verkaufsschild A4</h2>
+      <p className="max-w-3xl font-txt text-mut">
+        Fertiges Schild mit QR Code, Anleitung in drei Schritten und den Zahlarten dieser Stelle. Ist PayPal an, wird es als schnellster Weg hervorgehoben.
+        Werden die Zahlarten geändert, bitte das Schild neu herunterladen und austauschen.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-3">
+        <a className="btn btn-or" href={`/admin/schild/${l.id}?download=1`} download>Schild als PDF herunterladen</a>
+        <a className="btn btn-ghost" href={`/admin/schild/${l.id}`} target="_blank">Ansehen</a>
+      </div>
+
       <h2 id="qr" className="mt-10 text-2xl font-bold">QR Code</h2>
       <p className="font-txt text-mut">Für den Aufsteller: PNG zum Drucken oder SVG für den Grafiker. Mindestgröße im Druck etwa 3 × 3 cm.</p>
       <div className="mt-4 grid max-w-3xl items-start gap-6 md:grid-cols-[minmax(0,1fr)_240px]">
