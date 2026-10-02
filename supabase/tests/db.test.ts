@@ -13,11 +13,11 @@ beforeAll(async () => {
   await db.exec(`create schema auth; create table auth.users(id uuid primary key);
     create schema storage; create table storage.buckets(id text primary key, name text, public bool, file_size_limit bigint, allowed_mime_types text[]);
     create role anon; create role authenticated;`);
-  await db.exec(readFileSync(join(__dirname, "../migrations/0001_init.sql"), "utf8"));
+  for (const f of ["0001_init.sql", "0002_warnbestand.sql"]) await db.exec(readFileSync(join(__dirname, "../migrations", f), "utf8"));
   loc = (await q<{ id: string }>(`insert into locations(slug,name,typ) values('alpenblick','Ferienwohnung Alpenblick','Ferienwohnung') returning id`))[0].id;
   bl = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents,alkohol_vol) values('Bierlikör',100,'ml',600,21.6) returning id`))[0].id;
   ho = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents) values('Honig',250,'g',650) returning id`))[0].id;
-  await q(`insert into location_products values($1,$2,4,6),($1,$3,3,4)`, [loc, bl, ho]);
+  await q(`insert into location_products(location_id,product_id,ist,soll,warn) values($1,$2,4,6,2),($1,$3,3,4,2)`, [loc, bl, ho]);
 });
 
 const order = (status: string, items: object[]) =>
@@ -49,6 +49,13 @@ describe("book_stock", () => {
     const [c] = await order("cash", [{ product_id: bl, unit_price_cents: 600, quantity: 1 }]);
     expect(await q(`select * from book_stock($1)`, [c.order_id])).toEqual([]); // schon gemeldet
     expect((await q<{ ist: number }>(`select ist from location_products where product_id=$1`, [bl]))[0].ist).toBe(1);
+  });
+  it("nutzt den festen Warnbestand statt Prozent", async () => {
+    await q(`update location_products set ist=8, soll=10, warn=5 where product_id=$1`, [ho]);
+    const [o] = await order("cash", [{ product_id: ho, unit_price_cents: 650, quantity: 2 }]);
+    expect(await q(`select * from book_stock($1)`, [o.order_id])).toEqual([]); // 6 > 5
+    const [o2] = await order("cash", [{ product_id: ho, unit_price_cents: 650, quantity: 1 }]);
+    expect(await q(`select * from book_stock($1)`, [o2.order_id])).toEqual([expect.objectContaining({ product_name: "Honig", ist: 5 })]);
   });
   it("Auffüllen setzt die Meldung zurück", async () => {
     await q(`update location_products set ist=soll where product_id=$1`, [bl]);

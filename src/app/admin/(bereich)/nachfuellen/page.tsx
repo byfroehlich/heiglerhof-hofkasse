@@ -1,24 +1,23 @@
 import { db } from "@/lib/supabase";
-import { meldebestand } from "@/lib/format";
 import { refill } from "../../actions";
 
-type R = { ist: number; soll: number; location_id: string; product_id: string; locations: { name: string; typ: string; ort: string | null; active: boolean }; products: { name: string } };
+type R = { ist: number; soll: number; warn: number; location_id: string; product_id: string; locations: { name: string; typ: string; ort: string | null; active: boolean }; products: { name: string } };
 
 export default async function Nachfuellen() {
   const { data } = await db()
     .from("location_products")
-    .select("ist, soll, location_id, product_id, locations!inner(name, typ, ort, active), products!inner(name)")
+    .select("ist, soll, warn, location_id, product_id, locations!inner(name, typ, ort, active), products!inner(name)")
     .eq("locations.active", true)
     .returns<R[]>();
   const rows = (data ?? []).sort((a, b) => a.locations.name.localeCompare(b.locations.name, "de") || a.products.name.localeCompare(b.products.name, "de"));
-  const low = rows.filter((r) => r.ist <= meldebestand(r.soll));
+  const low = rows.filter((r) => r.ist <= r.warn);
   const groups = new Map<string, R[]>();
   for (const r of low) groups.set(r.location_id, [...(groups.get(r.location_id) ?? []), r]);
 
   return (
     <>
       <h1 className="text-3xl font-bold">Nachfüllen</h1>
-      <p className="max-w-3xl font-txt text-mut">Jeder Verkauf bucht den Bestand ab. Fällt ein Produkt auf 30 % vom Soll, kommt eine E-Mail und es steht hier. Nach dem Auffüllen einfach abhaken.</p>
+      <p className="max-w-3xl font-txt text-mut">Jeder Verkauf bucht den Bestand ab. Fällt ein Produkt auf seinen Warnbestand oder darunter, kommt eine E-Mail und es steht hier. Den Warnbestand legt ihr je Verkaufsstelle unter „Verkaufsstellen“ fest. Nach dem Auffüllen einfach abhaken.</p>
       {groups.size === 0 && <div className="mt-4 rounded-xl bg-cream p-4">Alles aufgefüllt. Gerade muss nirgends etwas hin.</div>}
       <div className="mt-4 grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(300px,1fr))]">
         {[...groups.values()].map((g) => (
@@ -43,13 +42,13 @@ export default async function Nachfuellen() {
       <h2 className="mt-8 text-xl font-bold">Alle Bestände</h2>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full tnum">
-          <thead><tr className="border-b-2 border-ink text-left text-sm text-mut"><th className="p-2">Verkaufsstelle</th><th className="p-2">Produkt</th><th className="p-2 text-right">Ist</th><th className="p-2 text-right">Soll</th><th className="p-2">Zustand</th></tr></thead>
+          <thead><tr className="border-b-2 border-ink text-left text-sm text-mut"><th className="p-2">Verkaufsstelle</th><th className="p-2">Produkt</th><th className="p-2 text-right">Ist</th><th className="p-2 text-right">Soll</th><th className="p-2 text-right">Warnen bei</th><th className="p-2">Zustand</th></tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.location_id + r.product_id} className="border-b border-[#f1e8d6]">
                 <td className="p-2">{r.locations.name}</td><td className="p-2">{r.products.name}</td>
-                <td className="p-2 text-right">{r.ist}</td><td className="p-2 text-right">{r.soll}</td>
-                <td className="p-2">{r.ist < 1 ? <span className="pill bg-bad">leer</span> : r.ist <= meldebestand(r.soll) ? <span className="pill bg-warn">nachfüllen</span> : <span className="pill bg-ok">gut</span>}</td>
+                <td className="p-2 text-right">{r.ist}</td><td className="p-2 text-right">{r.soll}</td><td className="p-2 text-right">{r.warn}</td>
+                <td className="p-2">{r.ist < 1 ? <span className="pill bg-bad">leer</span> : r.ist <= r.warn ? <span className="pill bg-warn">nachfüllen</span> : <span className="pill bg-ok">gut</span>}</td>
               </tr>
             ))}
           </tbody>

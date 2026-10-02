@@ -3,14 +3,13 @@ import { requireAdmin } from "@/lib/auth";
 import { signOut } from "../actions";
 import { AdminNav } from "@/components/admin-nav";
 import { db } from "@/lib/supabase";
-import { meldebestand } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const me = await requireAdmin();
-  const { data } = await db().from("location_products").select("ist, soll, locations!inner(active)").eq("locations.active", true);
-  const low = (data ?? []).filter((r) => r.ist <= meldebestand(r.soll)).length;
+  const { data } = await db().from("location_products").select("ist, warn, locations!inner(active)").eq("locations.active", true);
+  const low = (data ?? []).filter((r) => r.ist <= r.warn).length;
   return (
     <div className="flex min-h-full flex-1 flex-col md:flex-row">
       <aside className="flex items-center gap-2 overflow-x-auto border-b border-line bg-cream px-3 py-2 md:w-56 md:flex-none md:flex-col md:items-stretch md:gap-1 md:border-b-0 md:border-r md:px-3 md:py-5">
