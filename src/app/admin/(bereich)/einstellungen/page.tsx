@@ -1,6 +1,7 @@
 import { db } from "@/lib/supabase";
 import { ibanLesbar } from "@/lib/giro";
 import { BankForm } from "./form";
+import { AppUndPush } from "@/components/app-push";
 
 export default async function Einstellungen() {
   const { data } = await db().from("einstellungen").select("iban, empfaenger, bic, geaendert_am, geaendert_von").eq("id", 1).maybeSingle();
@@ -8,6 +9,7 @@ export default async function Einstellungen() {
   return (
     <>
       <h1 className="text-3xl font-bold">Einstellungen</h1>
+      <AppUndPush />
       <section className="mt-4 max-w-2xl rounded-2xl bg-cream p-4 md:p-6">
         <h2 className="text-xl font-bold">Bankverbindung für Überweisungen</h2>
         <p className="mt-1 font-txt text-mut">

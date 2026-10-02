@@ -13,7 +13,7 @@ beforeAll(async () => {
   await db.exec(`create schema auth; create table auth.users(id uuid primary key);
     create schema storage; create table storage.buckets(id text primary key, name text, public bool, file_size_limit bigint, allowed_mime_types text[]);
     create role anon; create role authenticated;`);
-  for (const f of ["0001_init.sql", "0002_warnbestand.sql", "0003_warnstufen.sql", "0004_adressen_karte_partner.sql", "0005_zahlarten.sql", "0006_einstellungen.sql"]) await db.exec(readFileSync(join(__dirname, "../migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_warnbestand.sql", "0003_warnstufen.sql", "0004_adressen_karte_partner.sql", "0005_zahlarten.sql", "0006_einstellungen.sql", "0007_push.sql"]) await db.exec(readFileSync(join(__dirname, "../migrations", f), "utf8"));
   loc = (await q<{ id: string }>(`insert into locations(slug,name,typ) values('alpenblick','Ferienwohnung Alpenblick','Ferienwohnung') returning id`))[0].id;
   bl = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents,alkohol_vol) values('Bierlikör',100,'ml',600,21.6) returning id`))[0].id;
   ho = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents) values('Honig',250,'g',650) returning id`))[0].id;
@@ -116,5 +116,14 @@ describe("Einstellungen", () => {
     await expect(q(`update einstellungen set bic='XX' where id=1`)).rejects.toThrow();
     await q(`update einstellungen set iban='DE89370400440532013000', empfaenger='Heiglerhof', bic='COBADEFFXXX' where id=1`);
     expect((await q<{ n: number }>(`select count(*)::int n from einstellungen`))[0].n).toBe(1);
+  });
+});
+
+describe("Push", () => {
+  it("speichert Geräte mit https-Adresse, eindeutig, alle Arten an", async () => {
+    await q(`insert into push_abos (endpoint, p256dh, auth) values ('https://fcm.googleapis.com/x', 'k', 'a')`);
+    await expect(q(`insert into push_abos (endpoint, p256dh, auth) values ('https://fcm.googleapis.com/x', 'k', 'a')`)).rejects.toThrow();
+    await expect(q(`insert into push_abos (endpoint, p256dh, auth) values ('http://boese.de', 'k', 'a')`)).rejects.toThrow();
+    expect((await q<{ kauf: boolean; knapp: boolean; leer: boolean }>(`select kauf, knapp, leer from push_abos`))[0]).toEqual({ kauf: true, knapp: true, leer: true });
   });
 });

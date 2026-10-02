@@ -9,6 +9,7 @@ import { locationEditSchema, locationSchema, productSchema } from "@/lib/validat
 import { adresseSuchen, type Treffer } from "@/lib/geo";
 import { bankdaten, ibanGueltig, ibanLesbar } from "@/lib/giro";
 import { hinweisMail } from "@/lib/notify";
+import { sendePush, vapid } from "@/lib/push";
 import { slugify } from "@/lib/format";
 
 export type FormState = { error?: string; ok?: string } | undefined;
@@ -274,4 +275,52 @@ export async function saveBank(_: FormState, form: FormData): Promise<FormState>
     `Die Bankdaten für Überweisungen wurden geändert von ${me.email}.\n\nKontoinhaber: ${empfaenger}\nIBAN: ${ibanLesbar(iban)}${bic ? `\nBIC: ${bic}` : ""}\n\nWar das nicht ihr? Sofort im Adminbereich prüfen und das Passwort ändern.`);
   revalidatePath("/admin", "layout");
   return { ok: "Gespeichert. Jetzt bei den gewünschten Verkaufsstellen den Schalter Überweisung einschalten." };
+}
+
+// ---------- Push-Mitteilungen ----------
+type PushAbo = { endpoint: string; keys: { p256dh: string; auth: string } };
+const pushOk = (a: unknown): a is PushAbo => {
+  const x = a as PushAbo;
+  return typeof x?.endpoint === "string" && /^https:\/\//.test(x.endpoint) && x.endpoint.length < 1000 &&
+    typeof x.keys?.p256dh === "string" && typeof x.keys?.auth === "string" && x.keys.p256dh.length < 200 && x.keys.auth.length < 100;
+};
+
+export async function pushSchluessel(): Promise<string> {
+  await requireAdmin();
+  return (await vapid()).publicKey;
+}
+
+export async function pushAnmelden(abo: unknown, geraet: string): Promise<FormState> {
+  const me = await requireAdmin();
+  if (!pushOk(abo)) return { error: "Das Gerät hat keine gültige Anmeldung geliefert." };
+  const { error } = await db().from("push_abos").upsert(
+    { endpoint: abo.endpoint, p256dh: abo.keys.p256dh, auth: abo.keys.auth, user_id: me.userId, email: me.email, geraet: geraet.slice(0, 120) || null },
+    { onConflict: "endpoint" },
+  );
+  if (error) return { error: "Anmeldung konnte nicht gespeichert werden." };
+  await sendePush(null, { title: "Hofkasse", body: "Mitteilungen sind eingeschaltet. So sieht eine Meldung aus.", tag: "test" }, abo.endpoint);
+  return { ok: "eingeschaltet" };
+}
+
+export async function pushAbmelden(endpoint: string): Promise<void> {
+  await requireAdmin();
+  await db().from("push_abos").delete().eq("endpoint", endpoint);
+}
+
+export async function pushArten(endpoint: string): Promise<{ kauf: boolean; knapp: boolean; leer: boolean } | null> {
+  await requireAdmin();
+  const { data } = await db().from("push_abos").select("kauf, knapp, leer").eq("endpoint", endpoint).maybeSingle();
+  return data;
+}
+
+export async function pushArtSetzen(endpoint: string, art: "kauf" | "knapp" | "leer", on: boolean): Promise<void> {
+  await requireAdmin();
+  if (!["kauf", "knapp", "leer"].includes(art)) return;
+  await db().from("push_abos").update({ [art]: on }).eq("endpoint", endpoint);
+}
+
+export async function pushTest(endpoint: string): Promise<FormState> {
+  await requireAdmin();
+  const n = await sendePush(null, { title: "Test von der Hofkasse", body: "Wenn ihr das lest, kommen die Mitteilungen an.", tag: "test" }, endpoint);
+  return n ? { ok: "Test verschickt" } : { error: "Nicht angekommen. Die Anmeldung dieses Geräts ist abgelaufen, bitte aus- und wieder einschalten." };
 }

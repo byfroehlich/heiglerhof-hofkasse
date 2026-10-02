@@ -3,7 +3,9 @@ import { db } from "./supabase";
 import { loadShop } from "./shop";
 import { buildQuote, QuoteError, toPayPalValue } from "./pricing";
 import { createPayPalOrder, capturePayPalOrder } from "./paypal";
+import { after } from "next/server";
 import { notifyLowStock, type LowStock } from "./notify";
+import { bestandPush, kaufPush } from "./push";
 import type { CheckoutInput } from "./validation";
 import { bankdaten, epcText, giroSvg, ibanLesbar } from "./giro";
 
@@ -110,7 +112,10 @@ export async function startTransferCheckout(input: CheckoutInput): Promise<Recei
 async function bookStock(orderId: string) {
   const { data, error } = await db().rpc("book_stock", { p_order: orderId });
   if (error) { console.error("[bestand]", error.message); return; }
-  await notifyLowStock((data ?? []) as LowStock[]);
+  const low = (data ?? []) as LowStock[];
+  await notifyLowStock(low);
+  // Push-Mitteilungen erst nach der Antwort an den Gast verschicken, damit die Kasse nicht wartet
+  after(async () => { await kaufPush(orderId); await bestandPush(low); });
 }
 
 async function receipt(orderId: string): Promise<Receipt> {
