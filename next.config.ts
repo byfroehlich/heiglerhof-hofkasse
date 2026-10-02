@@ -23,7 +23,8 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" }, // nur die eigene App darf die Kasse einbetten (Vorschau im Admin)
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
           { key: "Permissions-Policy", value: "camera=(self), geolocation=()" },
         ],
       },

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { KassenVorschau } from "@/components/kassen-vorschau";
 import { notFound } from "next/navigation";
 import { db, partnerUrl } from "@/lib/supabase";
 import { qrSvg } from "@/lib/qr";
@@ -48,7 +49,8 @@ export default async function VerkaufsstelleBearbeiten({ params }: PageProps<"/a
           <a className="btn btn-ghost" href={`/admin/qr/${l.id}?format=svg`} download>SVG herunterladen</a>
           <div className="rounded-xl bg-cream p-3 text-sm">
             <div className="text-mut">Der Code führt zu</div>
-            <a href={url} target="_blank" className="break-all font-mono">{url}</a>
+            <div className="break-all font-mono">{url}</div>
+            <KassenVorschau pfad={`/kasse/${l.slug}`} name={l.name} className="btn btn-ghost btn-sm mt-2">Kasse ansehen</KassenVorschau>
           </div>
           <p className="text-sm text-mut">Vor dem Drucken einmal mit dem Handy scannen und prüfen, ob die richtige Verkaufsstelle aufgeht.</p>
         </div>
