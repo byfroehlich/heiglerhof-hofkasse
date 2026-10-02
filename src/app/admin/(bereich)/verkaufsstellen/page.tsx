@@ -1,19 +1,19 @@
 import Link from "next/link";
 import { qrSvg } from "@/lib/qr";
 import { siteUrl } from "@/lib/site";
-import { db } from "@/lib/supabase";
+import { db, partnerUrl } from "@/lib/supabase";
 import { STUFE, produktLabel, stufe, type Einheit } from "@/lib/format";
 import { bankdaten } from "@/lib/giro";
 import { reactivateLocation } from "../../actions";
 import { NewLocationForm, AssortToggle, StockInput, RemoveLocation, Zahlarten } from "@/components/location-controls";
 
-type L = { id: string; slug: string; name: string; typ: string; ort: string | null; strasse: string | null; plz: string | null; lat: number | null; oeffentlich: boolean; bar_aktiv: boolean; paypal_aktiv: boolean; ueberweisung_aktiv: boolean; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number; warn: number }[] };
+type L = { id: string; slug: string; name: string; typ: string; ort: string | null; strasse: string | null; plz: string | null; lat: number | null; oeffentlich: boolean; logo_path: string | null; bar_aktiv: boolean; paypal_aktiv: boolean; ueberweisung_aktiv: boolean; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number; warn: number }[] };
 
 export default async function Verkaufsstellen() {
   const base = await siteUrl();
   const ueMoeglich = (await bankdaten()) !== null;
   const [{ data: locs }, { data: prods }, { data: counts }] = await Promise.all([
-    db().from("locations").select("id, slug, name, typ, ort, strasse, plz, lat, oeffentlich, bar_aktiv, paypal_aktiv, ueberweisung_aktiv, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
+    db().from("locations").select("id, slug, name, typ, ort, strasse, plz, lat, oeffentlich, logo_path, bar_aktiv, paypal_aktiv, ueberweisung_aktiv, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
     db().from("products").select("id, name, zusatz, inhalt, einheit, active").order("name"),
     db().from("orders").select("location_id"),
   ]);
@@ -37,6 +37,12 @@ export default async function Verkaufsstellen() {
           return (
             <details key={l.id} className="group/stelle min-w-0 rounded-xl border border-line bg-cream open:shadow-sm">
               <summary className="flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                {l.logo_path && (
+                  <span className="grid h-12 w-16 flex-none place-items-center overflow-hidden rounded-lg border border-line bg-white p-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- Partnerlogo aus dem Storage, schon verkleinert */}
+                    <img src={partnerUrl(l.logo_path)!} alt={`Logo ${l.name}`} className="max-h-full max-w-full object-contain" loading="lazy" />
+                  </span>
+                )}
                 <span className="min-w-0 flex-1">
                   <span className="block text-xs font-semibold uppercase tracking-wider text-mut">{l.typ}</span>
                   <span className="block text-xl font-bold leading-tight">{l.name}</span>
