@@ -80,11 +80,13 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
     finally { setBusy(false); }
   }
 
+  const zahlweg = location.paypal && location.bar ? "zahlt hier mit PayPal oder bar in die Kasse" : location.paypal ? "zahlt hier mit PayPal" : "legt das Geld bar in die Kasse";
+  const oderBar = location.bar ? " oder bar zahlen" : "";
   const intro =
     location.typ === "Verkaufskasten"
-      ? "Selbstbedienung direkt an unserer Hoftür. Nehmt euch, was ihr mögt, und zahlt hier mit PayPal oder bar in die Kasse."
+      ? `Selbstbedienung direkt an unserer Hoftür. Nehmt euch, was ihr mögt, und ${zahlweg}.`
       : location.typ === "Hotel"
-        ? "Handgemachtes vom Heiglerhof, ganz hier in der Nähe. Nehmt euch einfach etwas aus dem Regal und zahlt hier mit PayPal oder bar in die Kasse."
+        ? `Handgemachtes vom Heiglerhof, ganz hier in der Nähe. Nehmt euch einfach etwas aus dem Regal und ${zahlweg}.`
         : "Ein paar unserer Schätze zum Probieren. Nehmt euch, was euch anlacht.";
 
 
@@ -135,7 +137,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
             </label>
           )}
           {err && <div className="mt-3 rounded-xl bg-[#fbe9e7] p-3 text-bad">{err}</div>}
-          <div className={`mt-5 ${blocked ? "pointer-events-none opacity-40" : ""}`} aria-disabled={blocked}>
+          {location.paypal && <div className={`mt-5 ${blocked ? "pointer-events-none opacity-40" : ""}`} aria-disabled={blocked}>
             {paypalClientId ? (
               <PayPalScriptProvider options={{ clientId: paypalClientId, currency: "EUR", intent: "capture", locale: "de_DE", components: "buttons", disableFunding: "card,sepa,giropay,sofort,eps,bancontact,blik,ideal,mybank,p24" }}>
                 <PayPalButtons
@@ -153,17 +155,19 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
                     catch (e) { setErr((e as Error).message); }
                     finally { setBusy(false); }
                   }}
-                  onCancel={() => setErr("Zahlung abgebrochen. Ihr könnt es noch einmal versuchen oder bar zahlen.")}
-                  onError={(e) => setErr(String((e as { message?: unknown })?.message ?? "") || "PayPal hat gerade ein Problem. Bitte bar zahlen oder später noch einmal versuchen.")}
+                  onCancel={() => setErr(`Zahlung abgebrochen. Ihr könnt es noch einmal versuchen${oderBar}.`)}
+                  onError={(e) => setErr(String((e as { message?: unknown })?.message ?? "") || (location.bar ? "PayPal hat gerade ein Problem. Bitte bar zahlen oder später noch einmal versuchen." : "PayPal hat gerade ein Problem. Bitte später noch einmal versuchen."))}
                 />
               </PayPalScriptProvider>
             ) : (
               <div className="rounded-xl bg-cream p-3 text-mut">PayPal ist noch nicht eingerichtet.</div>
             )}
-          </div>
-          <button className="btn btn-ghost mt-2 w-full" disabled={blocked || busy} onClick={payCash}>
-            Ich lege {eur(preview)} bar in die Kasse
-          </button>
+          </div>}
+          {location.bar && (
+            <button className={`btn mt-2 w-full ${location.paypal ? "btn-ghost" : "btn-or mt-5"}`} disabled={blocked || busy} onClick={payCash}>
+              Ich lege {eur(preview)} bar in die Kasse
+            </button>
+          )}
         </main>
       </>
     );
@@ -222,7 +226,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
           <button className="btn btn-or w-full" disabled={!count} onClick={() => { setErr(null); setStep("sum"); }}>
             {count ? `Weiter · ${count} Artikel · ${eur(preview)}` : "Produkt wählen"}
           </button>
-          <p className="mt-2 text-center text-sm text-mut">Bar zahlen geht auch: Geld einfach in die Kasse legen.</p>
+          <p className="mt-2 text-center text-sm text-mut">{location.paypal && location.bar ? "Bar zahlen geht auch: Geld einfach in die Kasse legen." : location.paypal ? "Bezahlt wird hier mit PayPal." : "Bezahlt wird hier bar: Geld einfach in die Kasse legen."}</p>
         </aside>
       </main>
     </>

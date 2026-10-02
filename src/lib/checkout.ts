@@ -39,6 +39,7 @@ async function insertOrder(locationId: string, status: "created" | "cash", lines
 /** Schritt 1 bis 4: prüfen, Preise laden, rechnen, Bestellung speichern, PayPal-Order anlegen. */
 export async function startPayPalCheckout(input: CheckoutInput): Promise<{ paypal_order_id: string }> {
   const { shop, quote } = await prepare(input);
+  if (!shop.location.paypal) throw new CheckoutError("PayPal ist hier gerade nicht möglich. Bitte bar zahlen.", 403);
   const order = await insertOrder(shop.location.id, "created", quote.lines);
   if (order.total !== quote.total_cents) throw new Error("Summenabweichung Server/DB");
   const paypalId = await createPayPalOrder(order.order_id, order.order_nr, quote, shop.location.name);
@@ -84,6 +85,7 @@ export async function markPaid(orderId: string, captureId: string, status: "paid
 
 export async function startCashCheckout(input: CheckoutInput): Promise<Receipt> {
   const { shop, quote } = await prepare(input);
+  if (!shop.location.bar) throw new CheckoutError("Barzahlung ist hier gerade nicht möglich. Bitte mit PayPal zahlen.", 403);
   const order = await insertOrder(shop.location.id, "cash", quote.lines);
   await bookStock(order.order_id);
   return receipt(order.order_id);

@@ -52,7 +52,7 @@ npm run check                # Lint, Typen, Tests
 ## Einrichtung
 
 1. **Supabase**: Projekt in Region Frankfurt anlegen. Im SQL Editor
-   alle Dateien aus `supabase/migrations/` der Reihe nach ausführen (0001, 0002, 0003, 0004 …). Admin-Nutzer unter
+   alle Dateien aus `supabase/migrations/` der Reihe nach ausführen (0001 bis 0005 …). Admin-Nutzer unter
    Authentication → Users anlegen, dann `supabase/admin_anlegen.sql` ausführen.
    Unter Authentication → Sign In / Providers die Selbstregistrierung abschalten.
 2. **PayPal**: Geschäftskonto, auf developer.paypal.com eine App anlegen (Sandbox und Live).

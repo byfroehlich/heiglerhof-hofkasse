@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createLocation, removeLocation, setAssortment, setStock } from "@/app/admin/actions";
+import { createLocation, removeLocation, setAssortment, setStock, setZahlart } from "@/app/admin/actions";
 
 export function NewLocationForm() {
   const [state, action, pending] = useActionState(createLocation, undefined);
@@ -89,6 +89,40 @@ export function RemoveLocation({ id, name, orders }: { id: string; name: string;
         <button className="btn flex-1 bg-bad text-white" disabled={pending} onClick={() => start(() => removeLocation(id))}>{orders > 0 ? "Ja, entfernen" : "Ja, löschen"}</button>
         <button className="btn btn-ghost flex-1" onClick={() => setAsk(false)}>Abbrechen</button>
       </div>
+    </div>
+  );
+}
+
+export function Zahlarten({ locationId, bar, paypal }: { locationId: string; bar: boolean; paypal: boolean }) {
+  const [state, setState] = useState({ bar, paypal });
+  const [err, setErr] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const router = useRouter();
+  const toggle = (art: "bar" | "paypal") => {
+    const v = !state[art];
+    if (!v && !state[art === "bar" ? "paypal" : "bar"]) { setErr("Mindestens eine Zahlart muss an bleiben."); return; }
+    setState((s) => ({ ...s, [art]: v })); setErr(null);
+    start(async () => {
+      const r = await setZahlart(locationId, art, v);
+      if (r?.error) { setState((s) => ({ ...s, [art]: !v })); setErr(r.error); }
+      router.refresh();
+    });
+  };
+  return (
+    <div className="mt-3 rounded-lg bg-paper p-2">
+      <div className="text-sm text-mut">Zahlarten an dieser Stelle</div>
+      <div className="mt-1 flex flex-wrap gap-2">
+        {(["paypal", "bar"] as const).map((art) => (
+          <button key={art} type="button" role="switch" aria-checked={state[art]} disabled={pending} onClick={() => toggle(art)}
+            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[15px] font-semibold ${state[art] ? "border-ok bg-[#e6f0df] text-ok" : "border-line bg-cream text-mut"}`}>
+            <span className={`relative h-5 w-9 rounded-full transition ${state[art] ? "bg-ok" : "bg-[#cfc6b6]"}`}>
+              <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${state[art] ? "left-[18px]" : "left-0.5"}`} />
+            </span>
+            {art === "paypal" ? "PayPal" : "Bar"} {state[art] ? "an" : "aus"}
+          </button>
+        ))}
+      </div>
+      {err && <p role="alert" className="mt-1 text-sm text-bad">{err}</p>}
     </div>
   );
 }

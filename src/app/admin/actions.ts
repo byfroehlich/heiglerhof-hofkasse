@@ -232,3 +232,12 @@ export async function saveLocation(_: FormState, form: FormData): Promise<FormSt
   revalidatePath("/karte");
   return { ok: `Gespeichert.${hinweisGeo}` };
 }
+
+export async function setZahlart(locationId: string, art: "bar" | "paypal", on: boolean): Promise<FormState> {
+  await requireAdmin();
+  if (!/^[0-9a-f-]{36}$/.test(locationId)) return { error: "Unbekannte Verkaufsstelle." };
+  const { error } = await db().from("locations").update({ [art === "bar" ? "bar_aktiv" : "paypal_aktiv"]: on }).eq("id", locationId);
+  if (error) return { error: error.code === "23514" ? "Mindestens eine Zahlart muss an bleiben." : "Speichern hat nicht geklappt." };
+  revalidatePath("/admin/verkaufsstellen");
+  return { ok: "gespeichert" };
+}
