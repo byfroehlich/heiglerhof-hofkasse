@@ -137,7 +137,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
           {err && <div className="mt-3 rounded-xl bg-[#fbe9e7] p-3 text-bad">{err}</div>}
           <div className={`mt-5 ${blocked ? "pointer-events-none opacity-40" : ""}`} aria-disabled={blocked}>
             {paypalClientId ? (
-              <PayPalScriptProvider options={{ clientId: paypalClientId, currency: "EUR", intent: "capture", locale: "de_DE", components: "buttons", disableFunding: "card,sepa,giropay,sofort" }}>
+              <PayPalScriptProvider options={{ clientId: paypalClientId, currency: "EUR", intent: "capture", locale: "de_DE", components: "buttons", disableFunding: "card,sepa,giropay,sofort,eps,bancontact,blik,ideal,mybank,p24" }}>
                 <PayPalButtons
                   style={{ layout: "vertical", color: "gold", shape: "rect", label: "pay", height: 48 }}
                   disabled={blocked || busy}
