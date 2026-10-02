@@ -6,12 +6,12 @@ import { STUFE, stufe } from "@/lib/format";
 import { reactivateLocation } from "../../actions";
 import { NewLocationForm, AssortToggle, StockInput, RemoveLocation } from "@/components/location-controls";
 
-type L = { id: string; slug: string; name: string; typ: string; ort: string | null; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number; warn: number }[] };
+type L = { id: string; slug: string; name: string; typ: string; ort: string | null; strasse: string | null; plz: string | null; lat: number | null; oeffentlich: boolean; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number; warn: number }[] };
 
 export default async function Verkaufsstellen() {
   const base = await siteUrl();
   const [{ data: locs }, { data: prods }, { data: counts }] = await Promise.all([
-    db().from("locations").select("id, slug, name, typ, ort, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
+    db().from("locations").select("id, slug, name, typ, ort, strasse, plz, lat, oeffentlich, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
     db().from("products").select("id, name, active").order("name"),
     db().from("orders").select("location_id"),
   ]);
@@ -34,12 +34,16 @@ export default async function Verkaufsstellen() {
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-semibold uppercase tracking-wider text-mut">{l.typ}</div>
                   <h2 className="text-xl font-bold leading-tight">{l.name}</h2>
-                  <div className="text-sm text-mut">{l.ort}</div>
+                  <div className="text-sm text-mut">{[l.strasse, [l.plz, l.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "Adresse fehlt"}</div>
+                  <div className="mt-0.5 flex flex-wrap gap-1 text-xs">
+                    {l.lat == null ? <span className="pill bg-warn">kein Kartenpunkt</span> : l.oeffentlich ? <span className="pill bg-ok">auf der Karte</span> : <span className="pill bg-[#9a948a]">nicht öffentlich</span>}
+                  </div>
+                  <Link href={`/admin/verkaufsstellen/${l.id}`} className="btn btn-ghost btn-sm mt-1 mr-1">Adresse und Partner</Link>
                   <a href={`/kasse/${l.slug}`} target="_blank" className="mt-1 inline-block break-all rounded border border-line bg-paper px-1.5 font-mono text-sm">/kasse/{l.slug}</a>
                 </div>
-                <Link href={`/admin/verkaufsstellen/${l.id}`} className="flex flex-none flex-col items-center gap-1 text-xs text-or-d underline" title="QR Code groß anzeigen und herunterladen">
+                <Link href={`/admin/verkaufsstellen/${l.id}`} className="flex flex-none flex-col items-center gap-1 text-xs text-or-d underline" title="Bearbeiten: Adresse, Karte, Partner, QR Code">
                   <span className="block h-24 w-24 rounded bg-paper" aria-label={`QR Code für ${l.name}`} dangerouslySetInnerHTML={{ __html: qr[l.id] }} />
-                  QR groß + Download
+                  Bearbeiten · QR
                 </Link>
               </div>
               <p className="mt-3 text-sm text-mut">Haken setzen, dann eintragen: Ist (was gerade da ist), Soll (was da sein soll) und „Warnen bei“ (ab dieser Menge oder weniger kommt eine Nachfüllmeldung). Speichert beim Verlassen des Feldes.</p>

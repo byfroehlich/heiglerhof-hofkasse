@@ -13,7 +13,7 @@ beforeAll(async () => {
   await db.exec(`create schema auth; create table auth.users(id uuid primary key);
     create schema storage; create table storage.buckets(id text primary key, name text, public bool, file_size_limit bigint, allowed_mime_types text[]);
     create role anon; create role authenticated;`);
-  for (const f of ["0001_init.sql", "0002_warnbestand.sql", "0003_warnstufen.sql"]) await db.exec(readFileSync(join(__dirname, "../migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_warnbestand.sql", "0003_warnstufen.sql", "0004_adressen_karte_partner.sql"]) await db.exec(readFileSync(join(__dirname, "../migrations", f), "utf8"));
   loc = (await q<{ id: string }>(`insert into locations(slug,name,typ) values('alpenblick','Ferienwohnung Alpenblick','Ferienwohnung') returning id`))[0].id;
   bl = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents,alkohol_vol) values('Bierlikör',100,'ml',600,21.6) returning id`))[0].id;
   ho = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents) values('Honig',250,'g',650) returning id`))[0].id;
@@ -74,5 +74,15 @@ describe("book_stock", () => {
     await q(`update locations set active=false where id=$1`, [loc]);
     await expect(order("cash", [{ product_id: bl, unit_price_cents: 600, quantity: 1 }])).rejects.toThrow();
     await q(`update locations set active=true where id=$1`, [loc]);
+  });
+});
+
+describe("Adressen und Karte", () => {
+  it("prüft PLZ, Koordinaten und Werbelink", async () => {
+    await expect(q(`update locations set plz='abc' where id=$1`, [loc])).rejects.toThrow();
+    await expect(q(`update locations set lat=91 where id=$1`, [loc])).rejects.toThrow();
+    await expect(q(`update locations set werbung_link='javascript:alert(1)' where id=$1`, [loc])).rejects.toThrow();
+    await q(`update locations set strasse='Wank 6', plz='87484', lat=47.6152, lng=10.5208, werbung_link='https://heiglerhof.de' where id=$1`, [loc]);
+    expect((await q<{ oeffentlich: boolean }>(`select oeffentlich from locations where id=$1`, [loc]))[0].oeffentlich).toBe(false); // Ferienwohnung
   });
 });

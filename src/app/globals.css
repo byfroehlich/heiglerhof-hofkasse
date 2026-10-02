@@ -52,3 +52,9 @@ body {
 .field input, .field select { font: inherit; font-size: 1.05rem; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: .55rem .65rem; background: var(--paper); }
 .pill { display: inline-block; font-size: .8rem; font-weight: 700; padding: .1rem .55rem; border-radius: 999px; color: #fff; white-space: nowrap; }
 .tnum { font-variant-numeric: tabular-nums; }
+
+/* Kartenmarker */
+.kpin { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 999px; border: 3px solid #fff; color: #fff; font: 700 14px/1 var(--font-ui); box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.leaflet-popup-content { font: 15px/1.35 var(--font-ui); }
+.leaflet-popup-content a { display: inline-block; margin-top: .3rem; color: var(--or-d); text-decoration: underline; }
+@media print { .no-print { display: none !important; } }

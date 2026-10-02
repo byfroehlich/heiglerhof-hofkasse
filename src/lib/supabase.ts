@@ -31,6 +31,12 @@ export async function authClient() {
   });
 }
 
+/** Öffentliche URL eines Partnerbilds (Logo oder Werbung). */
+export function partnerUrl(path: string | null): string | null {
+  if (!path) return null;
+  return `${env.supabaseUrl}/storage/v1/object/public/partner/${path}`;
+}
+
 export function fotoUrl(path: string | null): string | null {
   if (!path) return null;
   return `${env.supabaseUrl}/storage/v1/object/public/produktfotos/${path}`;

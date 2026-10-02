@@ -44,3 +44,21 @@ export const locationSchema = z.object({
   typ: z.enum(["Ferienwohnung", "Hotel", "Verkaufskasten", "Laden"]),
   ort: z.string().trim().max(80).transform((v) => v || null),
 });
+
+const leerNull = (max: number) => z.string().trim().max(max).transform((v) => v || null);
+const koord = (min: number, max: number) =>
+  z.string().trim().transform((v) => (v === "" ? null : Number(v.replace(",", "."))))
+    .refine((v) => v === null || (Number.isFinite(v) && v >= min && v <= max), "Koordinate ungültig");
+
+export const locationEditSchema = locationSchema.extend({
+  strasse: leerNull(120),
+  plz: z.string().trim().regex(/^(\d{4,5})?$/, "PLZ bitte mit 4 oder 5 Ziffern").transform((v) => v || null),
+  hinweis: leerNull(200),
+  oeffentlich: z.boolean(),
+  lat: koord(-90, 90),
+  lng: koord(-180, 180),
+  werbung_text: leerNull(300),
+  werbung_link: z.string().trim().max(300)
+    .transform((v) => (v === "" ? null : /^https?:\/\//i.test(v) ? v.replace(/^http:/i, "https:") : `https://${v}`))
+    .refine((v) => v === null || URL.canParse(v), "Link ungültig"),
+});

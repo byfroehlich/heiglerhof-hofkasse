@@ -15,5 +15,5 @@ export default async function KassePage({ params }: PageProps<"/kasse/[slug]">) 
   if (!/^[a-z0-9]{2,32}$/.test(slug)) notFound();
   const shop = await loadShop(slug);
   if (!shop) notFound();
-  return <Kasse location={shop.location} products={shop.products} paypalClientId={process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? ""} />;
+  return <Kasse location={shop.location} partner={shop.partner} products={shop.products} paypalClientId={process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? ""} />;
 }
