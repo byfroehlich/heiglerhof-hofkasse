@@ -2,16 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { MENU } from "@/lib/menu";
 
-export const MENU = [
-  { href: "/admin/bestellungen", label: "Bestellungen", icon: "🧾", info: "Alle Käufe, Überweisungen bestätigen" },
-  { href: "/admin/nachfuellen", label: "Nachfüllen", icon: "📦", info: "Was wo fehlt, abhaken" },
-  { href: "/admin/tour", label: "Nachfülltour", icon: "🚗", info: "Beste Route mit Packliste" },
-  { href: "/admin/abrechnung", label: "Abrechnung", icon: "💶", info: "Umsatz je Verkaufsstelle und Monat" },
-  { href: "/admin/produkte", label: "Produkte und Preise", icon: "🍯", info: "Anlegen, Fotos, Preise" },
-  { href: "/admin/verkaufsstellen", label: "Verkaufsstellen", icon: "📍", info: "Sortiment, Bestand, Zahlarten, Schild" },
-  { href: "/admin/einstellungen", label: "Einstellungen", icon: "⚙️", info: "Bankdaten, App und Mitteilungen" },
-] as const;
 
 /** Seitenleiste am Computer. Am Handy führt das Logo zum Startbildschirm mit großen Knöpfen. */
 export function AdminNav({ leer, knapp }: { leer: number; knapp: number }) {

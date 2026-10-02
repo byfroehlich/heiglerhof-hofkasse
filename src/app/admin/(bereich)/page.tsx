@@ -2,13 +2,18 @@ import Link from "next/link";
 import { db } from "@/lib/supabase";
 import { eur, stufe } from "@/lib/format";
 import { requireAdmin } from "@/lib/auth";
-import { MENU } from "@/components/admin-nav";
+import { MENU } from "@/lib/menu";
 import { signOut } from "../actions";
 
 /** Startbildschirm der App: kurzer Überblick und große Knöpfe zu allen Bereichen. */
 export default async function Start() {
   const me = await requireAdmin();
-  const heute = new Date(); heute.setHours(0, 0, 0, 0);
+  // Mitternacht nach deutscher Zeit (der Server läuft in UTC)
+  const jetzt = new Date();
+  const berlin = new Date(jetzt.toLocaleString("en-US", { timeZone: "Europe/Berlin" }));
+  const versatz = berlin.getTime() - jetzt.getTime();
+  berlin.setHours(0, 0, 0, 0);
+  const heute = new Date(berlin.getTime() - versatz);
   const [{ data: bestand }, { data: kaeufe }, { count: offen }] = await Promise.all([
     db().from("location_products").select("ist, warn, locations!inner(active), products!inner(active)").eq("locations.active", true).eq("products.active", true),
     db().from("orders").select("total_cents").in("status", ["paid", "cash", "transfer", "transfer_paid"]).gte("created_at", heute.toISOString()),
