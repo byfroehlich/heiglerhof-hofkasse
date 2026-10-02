@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/auth";
 import { authClient, db } from "@/lib/supabase";
 import { locationEditSchema, locationSchema, productSchema } from "@/lib/validation";
 import { adresseSuchen, type Treffer } from "@/lib/geo";
+import { bankdaten } from "@/lib/giro";
 import { slugify } from "@/lib/format";
 
 export type FormState = { error?: string; ok?: string } | undefined;
@@ -231,4 +232,21 @@ export async function saveLocation(_: FormState, form: FormData): Promise<FormSt
   revalidatePath("/admin/verkaufsstellen");
   revalidatePath("/karte");
   return { ok: `Gespeichert.${hinweisGeo}` };
+}
+
+export async function setZahlart(locationId: string, art: "bar" | "paypal" | "ueberweisung", on: boolean): Promise<FormState> {
+  await requireAdmin();
+  if (!/^[0-9a-f-]{36}$/.test(locationId)) return { error: "Unbekannte Verkaufsstelle." };
+  if (art === "ueberweisung" && on && !bankdaten()) return { error: "Erst IBAN und Empfänger in Vercel eintragen (ZAHLUNG_IBAN, ZAHLUNG_EMPFAENGER)." };
+  const { error } = await db().from("locations").update({ [`${art}_aktiv`]: on }).eq("id", locationId);
+  if (error) return { error: error.code === "23514" ? "Mindestens eine Zahlart muss an bleiben." : "Speichern hat nicht geklappt." };
+  revalidatePath("/admin/verkaufsstellen");
+  return { ok: "gespeichert" };
+}
+
+export async function markTransferPaid(orderId: string) {
+  await requireAdmin();
+  if (!/^[0-9a-f-]{36}$/.test(orderId)) return;
+  await db().from("orders").update({ status: "transfer_paid", paid_at: new Date().toISOString() }).eq("id", orderId).eq("status", "transfer");
+  revalidatePath("/admin", "layout");
 }

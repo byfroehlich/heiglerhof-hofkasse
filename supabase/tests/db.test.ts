@@ -13,7 +13,7 @@ beforeAll(async () => {
   await db.exec(`create schema auth; create table auth.users(id uuid primary key);
     create schema storage; create table storage.buckets(id text primary key, name text, public bool, file_size_limit bigint, allowed_mime_types text[]);
     create role anon; create role authenticated;`);
-  for (const f of ["0001_init.sql", "0002_warnbestand.sql", "0003_warnstufen.sql", "0004_adressen_karte_partner.sql"]) await db.exec(readFileSync(join(__dirname, "../migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_warnbestand.sql", "0003_warnstufen.sql", "0004_adressen_karte_partner.sql", "0005_zahlarten.sql"]) await db.exec(readFileSync(join(__dirname, "../migrations", f), "utf8"));
   loc = (await q<{ id: string }>(`insert into locations(slug,name,typ) values('alpenblick','Ferienwohnung Alpenblick','Ferienwohnung') returning id`))[0].id;
   bl = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents,alkohol_vol) values('Bierlikör',100,'ml',600,21.6) returning id`))[0].id;
   ho = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents) values('Honig',250,'g',650) returning id`))[0].id;
@@ -84,5 +84,27 @@ describe("Adressen und Karte", () => {
     await expect(q(`update locations set werbung_link='javascript:alert(1)' where id=$1`, [loc])).rejects.toThrow();
     await q(`update locations set strasse='Wank 6', plz='87484', lat=47.6152, lng=10.5208, werbung_link='https://heiglerhof.de' where id=$1`, [loc]);
     expect((await q<{ oeffentlich: boolean }>(`select oeffentlich from locations where id=$1`, [loc]))[0].oeffentlich).toBe(false); // Ferienwohnung
+  });
+});
+
+describe("Zahlarten", () => {
+  it("sind standardmäßig beide an, eine darf aus, beide nicht", async () => {
+    expect((await q<{ bar_aktiv: boolean; paypal_aktiv: boolean }>(`select bar_aktiv, paypal_aktiv from locations where id=$1`, [loc]))[0]).toEqual({ bar_aktiv: true, paypal_aktiv: true });
+    await q(`update locations set bar_aktiv=false where id=$1`, [loc]);
+    await expect(q(`update locations set paypal_aktiv=false where id=$1`, [loc])).rejects.toThrow();
+    await q(`update locations set bar_aktiv=true where id=$1`, [loc]);
+    expect((await q<{ u: boolean }>(`select ueberweisung_aktiv u from locations where id=$1`, [loc]))[0].u).toBe(false);
+  });
+  it("Überweisung legt eine offene Bestellung an und bucht den Bestand", async () => {
+    await q(`update location_products set ist=5 where product_id=$1`, [ho]);
+    const [o] = await order("transfer", [{ product_id: ho, unit_price_cents: 650, quantity: 2 }]);
+    expect((await q<{ status: string; paid_at: string | null }>(`select status, paid_at from orders where id=$1`, [o.order_id]))[0]).toEqual({ status: "transfer", paid_at: null });
+    await q(`select * from book_stock($1)`, [o.order_id]);
+    expect((await q<{ ist: number }>(`select ist from location_products where product_id=$1`, [ho]))[0].ist).toBe(3);
+    await q(`update orders set status='transfer_paid' where id=$1`, [o.order_id]);
+    await q(`update products set zusatz='Blütenhonig' where id=$1`, [ho]);
+    const [o2] = await order("cash", [{ product_id: ho, unit_price_cents: 650, quantity: 1 }]);
+    expect((await q<{ n: string }>(`select name_snapshot n from order_items where order_id=$1`, [o2.order_id]))[0].n).toBe("Honig 250 g · Blütenhonig");
+    await expect(q(`update orders set status='quatsch' where id=$1`, [o.order_id])).rejects.toThrow();
   });
 });

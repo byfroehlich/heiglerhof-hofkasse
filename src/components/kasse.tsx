@@ -6,6 +6,7 @@ import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { eur, grundpreisText, inhaltText, alkoholText } from "@/lib/format";
 import type { Location, Partner, ShopProduct } from "@/lib/shop";
 import type { Receipt } from "@/lib/checkout";
+import { UeberweisungInfo } from "./ueberweisung";
 
 type Props = { location: Location; partner: Partner; products: ShopProduct[]; paypalClientId: string };
 type Step = "list" | "sum" | "done";
@@ -73,6 +74,13 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
     return j as T;
   }
 
+  async function payTransfer() {
+    setBusy(true); setErr(null);
+    try { const r = await post<Receipt>("/api/checkout/transfer", body()); setDone(r); setStep("done"); setCart({}); }
+    catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
   async function payCash() {
     setBusy(true); setErr(null);
     try { const r = await post<Receipt>("/api/checkout/cash", body()); setDone(r); setStep("done"); setCart({}); }
@@ -80,11 +88,17 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
     finally { setBusy(false); }
   }
 
+  // Alle aktiven Zahlarten gleichwertig nennen
+  const arten = [location.paypal && "mit PayPal", location.ueberweisung && "per Überweisung", location.bar && "bar in die Kasse"].filter(Boolean) as string[];
+  const liste = arten.length > 1 ? `${arten.slice(0, -1).join(", ")} oder ${arten[arten.length - 1]}` : arten[0] ?? "";
+  const zahlweg = `zahlt hier ${liste}`;
+  const andere = [location.ueberweisung && "per Überweisung", location.bar && "bar"].filter(Boolean) as string[];
+  const oderBar = andere.length ? ` oder ${andere.join(" oder ")} zahlen` : "";
   const intro =
     location.typ === "Verkaufskasten"
-      ? "Selbstbedienung direkt an unserer Hoftür. Nehmt euch, was ihr mögt, und zahlt hier mit PayPal oder bar in die Kasse."
+      ? `Selbstbedienung direkt an unserer Hoftür. Nehmt euch, was ihr mögt, und ${zahlweg}.`
       : location.typ === "Hotel"
-        ? "Handgemachtes vom Heiglerhof, ganz hier in der Nähe. Nehmt euch einfach etwas aus dem Regal und zahlt hier mit PayPal oder bar in die Kasse."
+        ? `Handgemachtes vom Heiglerhof, ganz hier in der Nähe. Nehmt euch einfach etwas aus dem Regal und ${zahlweg}.`
         : "Ein paar unserer Schätze zum Probieren. Nehmt euch, was euch anlacht.";
 
 
@@ -94,9 +108,10 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
         <div className="mx-auto mt-10 grid h-20 w-20 place-items-center rounded-full bg-ok text-4xl text-white">✓</div>
         <h1 className="mt-4 font-brush text-5xl text-or">Vergelt&apos;s Gott!</h1>
         <p className="mt-2 text-xl">
-          {done.status === "cash" ? `Danke fürs Vertrauen · ${eur(done.total_cents)} in die Kasse` : done.status === "paid" ? `Zahlung eingegangen · ${eur(done.total_cents)}` : `Zahlung wird geprüft · ${eur(done.total_cents)}`}
+          {done.status === "cash" ? `Danke fürs Vertrauen · ${eur(done.total_cents)} in die Kasse` : done.status === "transfer" ? `Fast fertig · bitte ${eur(done.total_cents)} überweisen` : done.status === "paid" ? `Zahlung eingegangen · ${eur(done.total_cents)}` : `Zahlung wird geprüft · ${eur(done.total_cents)}`}
         </p>
         <p className="text-sm text-mut">Bestellung HH {done.nr}</p>
+        {done.ueberweisung && <UeberweisungInfo u={done.ueberweisung} />}
         <div className="mt-6 rounded-xl bg-cream p-4 text-left">
           {done.items.map((i) => (
             <div key={i.label} className="flex justify-between py-1 tnum"><span>{i.quantity} × {i.label}</span><span>{eur(i.unit_price_cents * i.quantity)}</span></div>
@@ -135,7 +150,8 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
             </label>
           )}
           {err && <div className="mt-3 rounded-xl bg-[#fbe9e7] p-3 text-bad">{err}</div>}
-          <div className={`mt-5 ${blocked ? "pointer-events-none opacity-40" : ""}`} aria-disabled={blocked}>
+          <h2 className="mt-5 text-lg font-semibold">Wie wollt ihr bezahlen?</h2>
+          {location.paypal && <div className={`mt-2 ${blocked ? "pointer-events-none opacity-40" : ""}`} aria-disabled={blocked}>
             {paypalClientId ? (
               <PayPalScriptProvider options={{ clientId: paypalClientId, currency: "EUR", intent: "capture", locale: "de_DE", components: "buttons", disableFunding: "card,sepa,giropay,sofort,eps,bancontact,blik,ideal,mybank,p24" }}>
                 <PayPalButtons
@@ -153,17 +169,24 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
                     catch (e) { setErr((e as Error).message); }
                     finally { setBusy(false); }
                   }}
-                  onCancel={() => setErr("Zahlung abgebrochen. Ihr könnt es noch einmal versuchen oder bar zahlen.")}
-                  onError={(e) => setErr(String((e as { message?: unknown })?.message ?? "") || "PayPal hat gerade ein Problem. Bitte bar zahlen oder später noch einmal versuchen.")}
+                  onCancel={() => setErr(`Zahlung abgebrochen. Ihr könnt es noch einmal versuchen${oderBar}.`)}
+                  onError={(e) => setErr(String((e as { message?: unknown })?.message ?? "") || `PayPal hat gerade ein Problem. Bitte später noch einmal versuchen${oderBar}.`)}
                 />
               </PayPalScriptProvider>
             ) : (
               <div className="rounded-xl bg-cream p-3 text-mut">PayPal ist noch nicht eingerichtet.</div>
             )}
-          </div>
-          <button className="btn btn-ghost mt-2 w-full" disabled={blocked || busy} onClick={payCash}>
-            Ich lege {eur(preview)} bar in die Kasse
-          </button>
+          </div>}
+          {location.ueberweisung && (
+            <button className="btn mt-3 h-12 w-full border-2 border-ink bg-paper text-lg" disabled={blocked || busy} onClick={payTransfer}>
+              Per Überweisung mit der Banking App
+            </button>
+          )}
+          {location.bar && (
+            <button className="btn mt-3 h-12 w-full border-2 border-ink bg-paper text-lg" disabled={blocked || busy} onClick={payCash}>
+              Ich lege {eur(preview)} bar in die Kasse
+            </button>
+          )}
         </main>
       </>
     );
@@ -197,7 +220,8 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
                     <h3 className="text-xl font-semibold leading-tight">{p.name}</h3>
                     <div className="text-sm leading-snug text-mut">
                       {inhaltText(p.inhalt, p.einheit)}
-                      {p.alkohol_vol != null ? <> · <span className="font-semibold text-bad">{alkoholText(p.alkohol_vol)}</span></> : p.zusatz ? ` · ${p.zusatz}` : ""}
+                      {p.alkohol_vol != null && <> · <span className="font-semibold text-bad">{alkoholText(p.alkohol_vol)}</span></>}
+                      {p.zusatz && <> · {p.zusatz}</>}
                       <br />Grundpreis {grundpreisText(p.price_cents, p.inhalt, p.einheit)}
                       {p.ist < 1 ? <> · <b>gerade leer</b></> : p.ist <= 2 ? ` · nur noch ${p.ist}` : ""}
                     </div>
@@ -222,7 +246,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
           <button className="btn btn-or w-full" disabled={!count} onClick={() => { setErr(null); setStep("sum"); }}>
             {count ? `Weiter · ${count} Artikel · ${eur(preview)}` : "Produkt wählen"}
           </button>
-          <p className="mt-2 text-center text-sm text-mut">Bar zahlen geht auch: Geld einfach in die Kasse legen.</p>
+          <p className="mt-2 text-center text-sm text-mut">{`Bezahlen könnt ihr ${liste}.`}</p>
         </aside>
       </main>
     </>

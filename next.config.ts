@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [{ protocol: "https", hostname: supabaseHost, pathname: "/storage/v1/object/public/produktfotos/**" }],
   },
+  // Schriften fürs Verkaufsschild (PDF) mit in die Serverfunktion packen
+  outputFileTracingIncludes: { "/admin/schild/[id]": ["./assets/fonts/*.ttf"] },
   experimental: {
     // Produktfotos kommen schon im Browser verkleinert an (rund 100 bis 300 KB).
     serverActions: { bodySizeLimit: "3mb" },

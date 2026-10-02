@@ -2,17 +2,19 @@ import Link from "next/link";
 import { qrSvg } from "@/lib/qr";
 import { siteUrl } from "@/lib/site";
 import { db } from "@/lib/supabase";
-import { STUFE, stufe } from "@/lib/format";
+import { STUFE, produktLabel, stufe, type Einheit } from "@/lib/format";
+import { bankdaten } from "@/lib/giro";
 import { reactivateLocation } from "../../actions";
-import { NewLocationForm, AssortToggle, StockInput, RemoveLocation } from "@/components/location-controls";
+import { NewLocationForm, AssortToggle, StockInput, RemoveLocation, Zahlarten } from "@/components/location-controls";
 
-type L = { id: string; slug: string; name: string; typ: string; ort: string | null; strasse: string | null; plz: string | null; lat: number | null; oeffentlich: boolean; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number; warn: number }[] };
+type L = { id: string; slug: string; name: string; typ: string; ort: string | null; strasse: string | null; plz: string | null; lat: number | null; oeffentlich: boolean; bar_aktiv: boolean; paypal_aktiv: boolean; ueberweisung_aktiv: boolean; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number; warn: number }[] };
 
 export default async function Verkaufsstellen() {
   const base = await siteUrl();
+  const ueMoeglich = bankdaten() !== null;
   const [{ data: locs }, { data: prods }, { data: counts }] = await Promise.all([
-    db().from("locations").select("id, slug, name, typ, ort, strasse, plz, lat, oeffentlich, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
-    db().from("products").select("id, name, active").order("name"),
+    db().from("locations").select("id, slug, name, typ, ort, strasse, plz, lat, oeffentlich, bar_aktiv, paypal_aktiv, ueberweisung_aktiv, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
+    db().from("products").select("id, name, zusatz, inhalt, einheit, active").order("name"),
     db().from("orders").select("location_id"),
   ]);
   const orderCount = (id: string) => (counts ?? []).filter((o) => o.location_id === id).length;
@@ -39,6 +41,7 @@ export default async function Verkaufsstellen() {
                     {l.lat == null ? <span className="pill bg-warn">kein Kartenpunkt</span> : l.oeffentlich ? <span className="pill bg-ok">auf der Karte</span> : <span className="pill bg-[#9a948a]">nicht öffentlich</span>}
                   </div>
                   <Link href={`/admin/verkaufsstellen/${l.id}`} className="btn btn-ghost btn-sm mt-1 mr-1">Adresse und Partner</Link>
+                  <a href={`/admin/schild/${l.id}?download=1`} download className="btn btn-ghost btn-sm mt-1 mr-1">Schild A4 (PDF)</a>
                   <a href={`/kasse/${l.slug}`} target="_blank" className="mt-1 inline-block break-all rounded border border-line bg-paper px-1.5 font-mono text-sm">/kasse/{l.slug}</a>
                 </div>
                 <Link href={`/admin/verkaufsstellen/${l.id}`} className="flex flex-none flex-col items-center gap-1 text-xs text-or-d underline" title="Bearbeiten: Adresse, Karte, Partner, QR Code">
@@ -46,19 +49,20 @@ export default async function Verkaufsstellen() {
                   Bearbeiten · QR
                 </Link>
               </div>
+              <Zahlarten locationId={l.id} bar={l.bar_aktiv} paypal={l.paypal_aktiv} ueberweisung={l.ueberweisung_aktiv} ueMoeglich={ueMoeglich} />
               <p className="mt-3 text-sm text-mut">Haken setzen, dann eintragen: Ist (was gerade da ist), Soll (was da sein soll) und „Warnen bei“ (ab dieser Menge oder weniger kommt eine Nachfüllmeldung). Speichert beim Verlassen des Feldes.</p>
               <div className="mt-1 flex flex-col">
                 {(prods ?? []).filter((p) => p.active || lp.has(p.id)).map((p) => {
                   const s = lp.get(p.id);
                   return (
                     <div key={p.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1">
-                      <AssortToggle locationId={l.id} productId={p.id} name={p.name} on={!!s} />
+                      <AssortToggle locationId={l.id} productId={p.id} name={produktLabel({ ...p, einheit: p.einheit as Einheit })} on={!!s} />
                       {s && (
                         <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5 text-sm text-mut">
                           {stufe(s.ist, s.warn) !== "gut" && <span className={`pill ${STUFE[stufe(s.ist, s.warn)].pill}`}>{STUFE[stufe(s.ist, s.warn)].t}</span>}
-                          Ist <StockInput locationId={l.id} productId={p.id} field="ist" value={s.ist} label={`Istbestand ${p.name}`} />
-                          Soll <StockInput locationId={l.id} productId={p.id} field="soll" value={s.soll} label={`Sollbestand ${p.name}`} />
-                          Warnen bei <StockInput locationId={l.id} productId={p.id} field="warn" value={s.warn} label={`Warnbestand ${p.name}`} />
+                          Ist <StockInput locationId={l.id} productId={p.id} field="ist" value={s.ist} label={`Istbestand ${produktLabel({ ...p, einheit: p.einheit as Einheit })}`} />
+                          Soll <StockInput locationId={l.id} productId={p.id} field="soll" value={s.soll} label={`Sollbestand ${produktLabel({ ...p, einheit: p.einheit as Einheit })}`} />
+                          Warnen bei <StockInput locationId={l.id} productId={p.id} field="warn" value={s.warn} label={`Warnbestand ${produktLabel({ ...p, einheit: p.einheit as Einheit })}`} />
                         </span>
                       )}
                     </div>

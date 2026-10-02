@@ -1,16 +1,16 @@
 import { db } from "@/lib/supabase";
 import { refill } from "../../actions";
-import { STUFE, stufe } from "@/lib/format";
+import { STUFE, produktLabel, stufe, type ProduktKurz } from "@/lib/format";
 
-type R = { ist: number; soll: number; warn: number; location_id: string; product_id: string; locations: { name: string; typ: string; ort: string | null; active: boolean }; products: { name: string } };
+type R = { ist: number; soll: number; warn: number; location_id: string; product_id: string; locations: { name: string; typ: string; ort: string | null; active: boolean }; products: ProduktKurz };
 
 export default async function Nachfuellen() {
   const { data } = await db()
     .from("location_products")
-    .select("ist, soll, warn, location_id, product_id, locations!inner(name, typ, ort, active), products!inner(name)")
+    .select("ist, soll, warn, location_id, product_id, locations!inner(name, typ, ort, active), products!inner(name, zusatz, inhalt, einheit)")
     .eq("locations.active", true)
     .returns<R[]>();
-  const rows = (data ?? []).sort((a, b) => a.locations.name.localeCompare(b.locations.name, "de") || a.products.name.localeCompare(b.products.name, "de"));
+  const rows = (data ?? []).sort((a, b) => a.locations.name.localeCompare(b.locations.name, "de") || produktLabel(a.products).localeCompare(produktLabel(b.products), "de"));
   // Leere zuerst, dann knappe
   const low = rows.filter((r) => stufe(r.ist, r.warn) !== "gut").sort((a, b) => Number(a.ist > 0) - Number(b.ist > 0));
   const groups = new Map<string, R[]>();
@@ -37,7 +37,7 @@ export default async function Nachfuellen() {
             <div className="mt-2">
               {g.map((r) => (
                 <div key={r.product_id} className="grid grid-cols-[minmax(0,1fr)_48px_56px_auto] items-center gap-2 py-1">
-                  <span className="truncate">{r.ist < 1 && <span className="pill mr-1 bg-bad">leer</span>}{r.products.name}</span>
+                  <span className="min-w-0">{r.ist < 1 && <span className="pill mr-1 bg-bad">leer</span>}{produktLabel(r.products)}</span>
                   <span className="h-2 overflow-hidden rounded bg-line"><i className={`block h-full ${STUFE[stufe(r.ist, r.warn)].bar}`} style={{ width: `${Math.round((r.ist / r.soll) * 100)}%` }} /></span>
                   <span className="text-right tnum">{r.ist} / {r.soll}</span>
                   <form action={refill.bind(null, r.location_id, r.product_id)}><button className="btn btn-ghost btn-sm">+{r.soll - r.ist}</button></form>
@@ -55,7 +55,7 @@ export default async function Nachfuellen() {
           <tbody>
             {rows.map((r) => (
               <tr key={r.location_id + r.product_id} className="border-b border-[#f1e8d6]">
-                <td className="p-2">{r.locations.name}</td><td className="p-2">{r.products.name}</td>
+                <td className="p-2">{r.locations.name}</td><td className="p-2">{produktLabel(r.products)}</td>
                 <td className="p-2 text-right">{r.ist}</td><td className="p-2 text-right">{r.soll}</td><td className="p-2 text-right">{r.warn}</td>
                 <td className="p-2"><span className={`pill ${STUFE[stufe(r.ist, r.warn)].pill}`}>{STUFE[stufe(r.ist, r.warn)].t}</span></td>
               </tr>
