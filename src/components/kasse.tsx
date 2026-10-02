@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { flushSync } from "react-dom";
 import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
@@ -68,7 +68,19 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
   const freigeben = () => { lock.current = false; setBusy(null); };
   const [done, setDone] = useState<Receipt | null>(null);
 
-  const lines = useMemo(() => products.filter((p) => (cart[p.id] ?? 0) > 0).map((p) => ({ p, q: cart[p.id] })), [products, cart]);
+  // Nie mehr in den Korb als gerade da ist, auch wenn der Bestand sich inzwischen geändert hat
+  const lines = useMemo(() => products.map((p) => ({ p, q: Math.min(cart[p.id] ?? 0, p.ist) })).filter((l) => l.q > 0), [products, cart]);
+
+  // Bestand frisch halten: alle 20 s und beim Zurückkehren auf die Seite, nur in der Auswahl
+  const inAuswahl = useRef(true);
+  useEffect(() => { inAuswahl.current = step === "list"; }, [step]);
+  useEffect(() => {
+    const neu = () => { if (document.visibilityState === "visible" && inAuswahl.current && !lock.current) router.refresh(); };
+    const t = setInterval(neu, 20_000);
+    document.addEventListener("visibilitychange", neu);
+    window.addEventListener("pageshow", neu);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", neu); window.removeEventListener("pageshow", neu); };
+  }, [router]);
   const count = lines.reduce((a, l) => a + l.q, 0);
   // Nur Anzeige. Bezahlt wird der Betrag, den der Server aus der Datenbank rechnet.
   const preview = lines.reduce((a, l) => a + l.p.price_cents * l.q, 0);
@@ -91,7 +103,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
     try {
       const r = await post<Receipt>(art === "bar" ? "/api/checkout/cash" : "/api/checkout/transfer", body());
       setDone(r); setStep("done"); setCart({}); router.refresh(); // Bestand neu laden
-    } catch (e) { setErr((e as Error).message); }
+    } catch (e) { setErr((e as Error).message); router.refresh(); }
     finally { freigeben(); }
   }
 
@@ -134,7 +146,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
           <p className="mt-2"><b>Heiglerhof</b> · Wank 6, 87484 Nesselwang · Steffi 0176 9999 8727</p>
           <a className="btn btn-or mt-3 w-full" href="https://www.google.com/maps/search/?api=1&query=Wank+6,+87484+Nesselwang" target="_blank" rel="noopener noreferrer">Weg zum Hof</a>
         </div>
-        <button className="btn btn-ghost mt-3 w-full" onClick={() => { router.refresh(); setStep("list"); setDone(null); setAge(false); }}>Noch etwas nehmen</button>
+        <button className="btn btn-ghost mt-3 w-full" onClick={() => window.location.reload()}>Noch etwas nehmen</button>
         <Werbung p={partner} name={location.name} />
       </main>
     );
@@ -215,7 +227,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
           {products.length === 0 && <p className="mt-6 rounded-xl bg-cream p-4">Gerade ist hier nichts eingeräumt. Wir füllen bald nach.</p>}
           <ul className="mt-2 grid gap-x-8 lg:grid-cols-2">
             {products.map((p) => {
-              const q = cart[p.id] ?? 0;
+              const q = Math.min(cart[p.id] ?? 0, p.ist);
               const max = Math.min(10, p.ist);
               return (
                 <li key={p.id} className={`grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 border-b border-[#f1e8d6] py-3 ${p.ist < 1 ? "opacity-50" : ""}`}>
