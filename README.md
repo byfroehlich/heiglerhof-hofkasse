@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hofkasse Heiglerhof
 
-## Getting Started
+Selbstbedienungskasse für Verkaufsstellen des Heiglerhofs (Ferienwohnungen, Hotels,
+Verkaufskasten an der Hoftür). Gäste scannen den QR Code am Aufsteller, wählen
+Produkte und zahlen mit PayPal oder legen Bargeld in die Kasse.
 
-First, run the development server:
+**Stack:** Next.js 16 (TypeScript, App Router) · Tailwind CSS 4 · Supabase (Postgres, Auth, Storage) · PayPal Orders API v2 · Vercel
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Grundsätze
+
+- Der Browser schickt beim Bezahlen **nur** `location`, `product_id` und `quantity`.
+  Preise lädt der Server aus Supabase und rechnet selbst (`src/lib/pricing.ts`).
+  Die Datenbankfunktion `create_order` prüft Preis, Verfügbarkeit und Bestand noch einmal.
+- Nach dem PayPal-Capture vergleicht der Server Status, Betrag, Währung und `custom_id`
+  mit der gespeicherten Bestellung. Abweichung → Status `review` statt `paid`.
+- Idempotent: `PayPal-Request-Id` bei Create und Capture, `paypal_order_id` und
+  `paypal_capture_id` sind eindeutig, der Bestand wird je Bestellung genau einmal gebucht.
+- Webhook `/api/paypal/webhook` (Signatur wird bei PayPal geprüft) fängt Zahlungen auf,
+  falls der Gast das Fenster nach dem Bezahlen schließt.
+- Alle Tabellen haben RLS ohne Policies. Lesen und Schreiben nur serverseitig mit dem
+  Service Role Key. `PAYPAL_CLIENT_SECRET` und `SUPABASE_SERVICE_ROLE_KEY` existieren
+  nur als Vercel-Umgebungsvariablen.
+- Adminbereich: Supabase Auth (E-Mail + Passwort). Jede Seite und jede Server Action
+  prüft `requireAdmin()` (angemeldet **und** in Tabelle `admins`).
+- Produktfotos werden im Browser auf 800 × 800 px verkleinert und auf dem Server mit
+  `sharp` neu kodiert (prüft das Bild, entfernt Metadaten wie GPS).
+
+## Aufbau
+
+```
+src/app/kasse/[slug]        Gästeseite je Verkaufsstelle (QR Code)
+src/app/api/checkout        PayPal-Order anlegen        (POST)
+src/app/api/checkout/capture  Zahlung buchen und prüfen (POST)
+src/app/api/checkout/cash   Barzahlung melden           (POST)
+src/app/api/paypal/webhook  PayPal-Webhook              (POST)
+src/app/api/cron/keepalive  täglicher Cron              (GET, CRON_SECRET)
+src/app/admin/...           Bestellungen, Nachfüllen, Abrechnung, Produkte, Verkaufsstellen
+src/lib/                    Preislogik, Validierung, PayPal, Supabase, Mail
+supabase/migrations/        Datenbankschema mit Funktionen create_order und book_stock
+supabase/tests/             Schematests gegen Postgres im Speicher (PGlite)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Lokal
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm ci
+cp .env.example .env.local   # Werte eintragen (Sandbox)
+npm run dev
+npm run check                # Lint, Typen, Tests
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Einrichtung
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Supabase**: Projekt in Region Frankfurt anlegen. Im SQL Editor
+   `supabase/migrations/0001_init.sql` ausführen. Admin-Nutzer unter
+   Authentication → Users anlegen, dann `supabase/admin_anlegen.sql` ausführen.
+   Unter Authentication → Sign In / Providers die Selbstregistrierung abschalten.
+2. **PayPal**: Geschäftskonto, auf developer.paypal.com eine App anlegen (Sandbox und Live).
+   Webhook auf `https://<domain>/api/paypal/webhook` mit den Ereignissen
+   `PAYMENT.CAPTURE.COMPLETED` und `PAYMENT.CAPTURE.REFUNDED` anlegen, ID notieren.
+3. **Vercel**: Repository importieren, Umgebungsvariablen aus `.env.example` setzen,
+   Domain `hofkasse.heiglerhof.de` verbinden (CNAME beim Webhoster).
+4. Erst mit Sandbox testen, dann `PAYPAL_API_BASE` und Zugangsdaten auf Live umstellen.
