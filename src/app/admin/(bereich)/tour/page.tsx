@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SendenKnopf } from "@/components/senden-knopf";
 import { db } from "@/lib/supabase";
 import { refill } from "../../actions";
 import { STUFE, produktLabel, stufe, type ProduktKurz, type Stufe } from "@/lib/format";
@@ -162,7 +163,7 @@ function StoppKarte({ s, nr, weg }: { s: Stopp; nr?: number; weg?: { km: number;
           </li>
         ))}
       </ul>
-      <form action={refill.bind(null, s.id, undefined)} className="no-print"><button className="btn btn-ghost btn-sm mt-2">Hier alles aufgefüllt</button></form>
+      <form action={refill.bind(null, s.id, undefined)} className="no-print"><SendenKnopf className="btn btn-ghost btn-sm mt-2" arbeit="Wird gespeichert …">Hier alles aufgefüllt</SendenKnopf></form>
     </li>
   );
 }

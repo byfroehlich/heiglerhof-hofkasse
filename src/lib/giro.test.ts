@@ -10,8 +10,8 @@ describe("giro", () => {
     expect(ibanGueltig("XX")).toBe(false);
   });
   it("baut den EPC-Text", () => {
-    const t = epcText({ iban: "DE89370400440532013000", empfaenger: "Heiglerhof", bic: "" }, 1250, "HH 1023 Heiglerhof");
-    expect(t.split("\n")).toEqual(["BCD", "002", "1", "SCT", "", "Heiglerhof", "DE89370400440532013000", "EUR12.50", "", "", "HH 1023 Heiglerhof"]);
+    const t = epcText({ iban: "DE89370400440532013000", empfaenger: "Heiglerhof", bic: "" }, 1250, "2026-1023 Hotel Alpenrose");
+    expect(t.split("\n")).toEqual(["BCD", "002", "1", "SCT", "", "Heiglerhof", "DE89370400440532013000", "EUR12.50", "", "", "2026-1023 Hotel Alpenrose"]);
     expect(ibanLesbar("DE89370400440532013000")).toBe("DE89 3704 0044 0532 0130 00");
   });
 });

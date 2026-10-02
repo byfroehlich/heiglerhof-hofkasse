@@ -1,4 +1,5 @@
 import "server-only";
+import { bestellNr, verwendungszweck } from "./format";
 import { db } from "./supabase";
 import { loadShop } from "./shop";
 import { buildQuote, QuoteError, toPayPalValue } from "./pricing";
@@ -14,7 +15,7 @@ export class CheckoutError extends Error {
 }
 
 export type Ueberweisung = { empfaenger: string; iban: string; bic: string; betrag_cents: number; zweck: string; qr: string };
-export type Receipt = { ueberweisung?: Ueberweisung; nr: number; total_cents: number; status: "paid" | "cash" | "review" | "transfer"; items: { label: string; quantity: number; unit_price_cents: number }[] };
+export type Receipt = { ueberweisung?: Ueberweisung; nr: number; ref: string; total_cents: number; status: "paid" | "cash" | "review" | "transfer"; items: { label: string; quantity: number; unit_price_cents: number }[] };
 
 async function prepare(input: CheckoutInput) {
   const shop = await loadShop(input.location);
@@ -102,7 +103,7 @@ export async function startTransferCheckout(input: CheckoutInput): Promise<Recei
   if (!shop.location.ueberweisung || !bank) throw new CheckoutError("Überweisung ist hier gerade nicht möglich.", 403);
   const order = await insertOrder(shop.location.id, "transfer", quote.lines);
   await bookStock(order.order_id);
-  const zweck = `HH ${order.order_nr} Heiglerhof`;
+  const zweck = verwendungszweck(order.order_nr, shop.location.name);
   return {
     ...(await receipt(order.order_id)),
     ueberweisung: { empfaenger: bank.empfaenger, iban: ibanLesbar(bank.iban), bic: bank.bic, betrag_cents: order.total, zweck, qr: giroSvg(epcText(bank, order.total, zweck)) },
@@ -121,12 +122,13 @@ async function bookStock(orderId: string) {
 async function receipt(orderId: string): Promise<Receipt> {
   const { data, error } = await db()
     .from("orders")
-    .select("nr, total_cents, status, order_items(name_snapshot, quantity, unit_price_cents)")
+    .select("nr, created_at, total_cents, status, order_items(name_snapshot, quantity, unit_price_cents)")
     .eq("id", orderId)
-    .single<{ nr: number; total_cents: number; status: Receipt["status"]; order_items: { name_snapshot: string; quantity: number; unit_price_cents: number }[] }>();
+    .single<{ nr: number; created_at: string; total_cents: number; status: Receipt["status"]; order_items: { name_snapshot: string; quantity: number; unit_price_cents: number }[] }>();
   if (error) throw error;
   return {
     nr: data.nr,
+    ref: bestellNr(data.nr, data.created_at),
     total_cents: data.total_cents,
     status: data.status,
     items: data.order_items.map((i) => ({ label: i.name_snapshot, quantity: i.quantity, unit_price_cents: i.unit_price_cents })),

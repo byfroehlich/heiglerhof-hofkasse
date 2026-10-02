@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { eur, grundpreisText, inhaltText, alkoholText } from "@/lib/format";
 import type { Location, Partner, ShopProduct } from "@/lib/shop";
@@ -53,7 +54,16 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
   const [step, setStep] = useState<Step>("list");
   const [age, setAge] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // Was gerade gebucht wird. Die Sperre (lock) greift sofort, auch bei schnellem Doppeltipp vor dem nächsten Rendern.
+  const [busy, setBusy] = useState<null | "paypal" | "ueberweisung" | "bar">(null);
+  const lock = useRef(false);
+  const sperren = (art: "paypal" | "ueberweisung" | "bar") => {
+    if (lock.current) return false;
+    lock.current = true;
+    flushSync(() => { setBusy(art); setErr(null); }); // sofort ausgrauen, bevor die Anfrage losgeht
+    return true;
+  };
+  const freigeben = () => { lock.current = false; setBusy(null); };
   const [done, setDone] = useState<Receipt | null>(null);
 
   const lines = useMemo(() => products.filter((p) => (cart[p.id] ?? 0) > 0).map((p) => ({ p, q: cart[p.id] })), [products, cart]);
@@ -74,18 +84,13 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
     return j as T;
   }
 
-  async function payTransfer() {
-    setBusy(true); setErr(null);
-    try { const r = await post<Receipt>("/api/checkout/transfer", body()); setDone(r); setStep("done"); setCart({}); }
-    catch (e) { setErr((e as Error).message); }
-    finally { setBusy(false); }
-  }
-
-  async function payCash() {
-    setBusy(true); setErr(null);
-    try { const r = await post<Receipt>("/api/checkout/cash", body()); setDone(r); setStep("done"); setCart({}); }
-    catch (e) { setErr((e as Error).message); }
-    finally { setBusy(false); }
+  async function bezahlen(art: "ueberweisung" | "bar") {
+    if (!sperren(art)) return;
+    try {
+      const r = await post<Receipt>(art === "bar" ? "/api/checkout/cash" : "/api/checkout/transfer", body());
+      setDone(r); setStep("done"); setCart({});
+    } catch (e) { setErr((e as Error).message); }
+    finally { freigeben(); }
   }
 
   // Alle aktiven Zahlarten gleichwertig nennen
@@ -110,7 +115,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
         <p className="mt-2 text-xl">
           {done.status === "cash" ? `Danke fürs Vertrauen · ${eur(done.total_cents)} in die Kasse` : done.status === "transfer" ? `Fast fertig · bitte ${eur(done.total_cents)} überweisen` : done.status === "paid" ? `Zahlung eingegangen · ${eur(done.total_cents)}` : `Zahlung wird geprüft · ${eur(done.total_cents)}`}
         </p>
-        <p className="text-sm text-mut">Bestellung HH {done.nr}</p>
+        <p className="text-sm text-mut">Bestellung {done.ref}</p>
         {done.ueberweisung && <UeberweisungInfo u={done.ueberweisung} />}
         <div className="mt-6 rounded-xl bg-cream p-4 text-left">
           {done.items.map((i) => (
@@ -136,7 +141,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
   if (step === "sum") {
     return (
       <>
-        <Head title="Eure Auswahl" sub={location.name} onBack={() => setStep("list")} />
+        <Head title="Eure Auswahl" sub={location.name} onBack={busy ? undefined : () => setStep("list")} />
         <main className="mx-auto w-full max-w-xl px-4 pb-12 pt-4">
           {lines.map((l) => (
             <div key={l.p.id} className="flex justify-between gap-3 py-1.5 text-lg tnum"><span>{l.q} × {l.p.label}</span><span>{eur(l.p.price_cents * l.q)}</span></div>
@@ -151,26 +156,28 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
           )}
           {err && <div className="mt-3 rounded-xl bg-[#fbe9e7] p-3 text-bad">{err}</div>}
           <h2 className="mt-5 text-lg font-semibold">Wie wollt ihr bezahlen?</h2>
-          {location.paypal && <div className={`mt-2 ${blocked ? "pointer-events-none opacity-40" : ""}`} aria-disabled={blocked}>
+          <div aria-busy={busy !== null} className={busy ? "pointer-events-none select-none" : ""}>
+          {busy && <p role="status" className="mt-2 flex items-center gap-2 rounded-xl bg-orl p-3 font-semibold"><span className="h-4 w-4 animate-spin rounded-full border-2 border-or border-t-transparent" aria-hidden />Wird gebucht, bitte kurz warten …</p>}
+          {location.paypal && <div className={`mt-2 ${blocked || (busy && busy !== "paypal") ? "pointer-events-none opacity-40" : ""}`} aria-disabled={blocked || busy !== null}>
             {paypalClientId ? (
               <PayPalScriptProvider options={{ clientId: paypalClientId, currency: "EUR", intent: "capture", locale: "de_DE", components: "buttons", disableFunding: "card,sepa,giropay,sofort,eps,bancontact,blik,ideal,mybank,p24" }}>
                 <PayPalButtons
                   style={{ layout: "vertical", color: "gold", shape: "rect", label: "pay", height: 48 }}
-                  disabled={blocked || busy}
+                  disabled={blocked || busy !== null}
                   forceReRender={[preview, age]}
+                  onClick={(_, actions) => (lock.current ? actions.reject() : actions.resolve())}
                   createOrder={async () => {
-                    setErr(null);
+                    if (!sperren("paypal")) throw new Error("Es läuft schon eine Zahlung.");
                     const r = await post<{ paypal_order_id: string }>("/api/checkout", body());
                     return r.paypal_order_id;
                   }}
                   onApprove={async (data) => {
-                    setBusy(true);
                     try { const r = await post<Receipt>("/api/checkout/capture", { paypal_order_id: data.orderID }); setDone(r); setStep("done"); setCart({}); }
                     catch (e) { setErr((e as Error).message); }
-                    finally { setBusy(false); }
+                    finally { freigeben(); }
                   }}
-                  onCancel={() => setErr(`Zahlung abgebrochen. Ihr könnt es noch einmal versuchen${oderBar}.`)}
-                  onError={(e) => setErr(String((e as { message?: unknown })?.message ?? "") || `PayPal hat gerade ein Problem. Bitte später noch einmal versuchen${oderBar}.`)}
+                  onCancel={() => { freigeben(); setErr(`Zahlung abgebrochen. Ihr könnt es noch einmal versuchen${oderBar}.`); }}
+                  onError={(e) => { freigeben(); setErr(String((e as { message?: unknown })?.message ?? "") || `PayPal hat gerade ein Problem. Bitte später noch einmal versuchen${oderBar}.`); }}
                 />
               </PayPalScriptProvider>
             ) : (
@@ -178,15 +185,16 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
             )}
           </div>}
           {location.ueberweisung && (
-            <button className="btn mt-3 h-12 w-full border-2 border-ink bg-paper text-lg" disabled={blocked || busy} onClick={payTransfer}>
-              Per Überweisung mit der Banking App
+            <button className="btn mt-3 h-12 w-full border-2 border-ink bg-paper text-lg disabled:opacity-40" disabled={blocked || busy !== null} onClick={() => bezahlen("ueberweisung")}>
+              {busy === "ueberweisung" ? "Wird gebucht …" : "Per Überweisung mit der Banking App"}
             </button>
           )}
           {location.bar && (
-            <button className="btn mt-3 h-12 w-full border-2 border-ink bg-paper text-lg" disabled={blocked || busy} onClick={payCash}>
-              Ich lege {eur(preview)} bar in die Kasse
+            <button className="btn mt-3 h-12 w-full border-2 border-ink bg-paper text-lg disabled:opacity-40" disabled={blocked || busy !== null} onClick={() => bezahlen("bar")}>
+              {busy === "bar" ? "Wird gebucht …" : <>Ich lege {eur(preview)} bar in die Kasse</>}
             </button>
           )}
+          </div>
         </main>
       </>
     );

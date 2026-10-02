@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { SendenKnopf } from "@/components/senden-knopf";
 import { db } from "@/lib/supabase";
-import { eur, produktLabel, stufe, type ProduktKurz } from "@/lib/format";
+import { bestellNr, eur, produktLabel, stufe, type ProduktKurz } from "@/lib/format";
 import { markTransferPaid } from "../../actions";
 
 const STATUS: Record<string, { t: string; c: string }> = {
@@ -15,9 +16,10 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin/b
   const sp = await searchParams;
   const loc = typeof sp.stelle === "string" ? sp.stelle : "";
   const st = typeof sp.status === "string" && sp.status in STATUS ? sp.status : "";
-  // Suche nach Bestellnummer: „1023“, „HH 1023“ oder „HH 1023 Heiglerhof“ aus dem Kontoauszug
+  // Suche nach Bestellnummer: „1023“, „2026-1023“ oder der ganze Verwendungszweck „2026-1023 Hotel Alpenrose“ aus dem Kontoauszug
   const suche = typeof sp.nr === "string" ? sp.nr.trim().slice(0, 40) : "";
-  const nr = /\d{1,9}/.exec(suche)?.[0];
+  // Jahr (4 Ziffern mit Bindestrich danach) überspringen, die laufende Nummer zählt
+  const nr = /(?:\b\d{4}\s*[-/]\s*)?(\d{1,9})/.exec(suche)?.[1];
   const { data: locations } = await db().from("locations").select("id, name").order("name");
   let q = db().from("orders").select("id, nr, status, total_cents, created_at, locations!inner(name), order_items(name_snapshot, quantity)").order("created_at", { ascending: false }).limit(200);
   if (loc) q = q.eq("location_id", loc);
@@ -53,7 +55,7 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin/b
         {(st || loc || suche) && <Link href="/admin/bestellungen" className="btn btn-ghost btn-sm">Alle zeigen</Link>}
       </div>
       <form className="mt-2 flex flex-wrap gap-2">
-        <input name="nr" type="search" inputMode="text" defaultValue={suche} placeholder="Bestellnummer, z. B. HH 1023" aria-label="Bestellnummer suchen"
+        <input name="nr" type="search" inputMode="text" defaultValue={suche} placeholder="Bestellnummer, z. B. 2026-1023" aria-label="Bestellnummer suchen"
           className="min-w-0 flex-1 basis-56 rounded-lg border border-line bg-paper px-2 py-1.5 text-[1.05rem]" />
         <select name="stelle" defaultValue={loc} className="rounded-lg border border-line bg-paper px-2 py-1.5">
           <option value="">Alle Verkaufsstellen</option>
@@ -71,18 +73,18 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin/b
           <tbody>
             {orders.map((o) => (
               <tr key={o.id} className="border-b border-[#f1e8d6]">
-                <td className="p-2">{o.nr}</td>
+                <td className="whitespace-nowrap p-2">{bestellNr(o.nr, o.created_at)}</td>
                 <td className="whitespace-nowrap p-2">{new Date(o.created_at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })}</td>
                 <td className="p-2">{o.locations.name}</td>
                 <td className="p-2">{o.order_items.map((i) => (i.quantity > 1 ? `${i.quantity} × ` : "") + i.name_snapshot).join(", ")}</td>
                 <td className="p-2 text-right">{eur(o.total_cents)}</td>
                 <td className="p-2">
                   <span className={`pill ${STATUS[o.status]?.c}`}>{STATUS[o.status]?.t ?? o.status}</span>
-                  {o.status === "transfer" && <form action={markTransferPaid.bind(null, o.id)} className="mt-1"><button className="btn btn-ghost btn-sm">Geld ist da</button></form>}
+                  {o.status === "transfer" && <form action={markTransferPaid.bind(null, o.id)} className="mt-1"><SendenKnopf arbeit="Wird gespeichert …">Geld ist da</SendenKnopf></form>}
                 </td>
               </tr>
             ))}
-            {orders.length === 0 && <tr><td colSpan={6} className="p-3 text-mut">{nr ? `Keine Bestellung HH ${nr} gefunden.` : "Keine Bestellungen für diesen Filter."}</td></tr>}
+            {orders.length === 0 && <tr><td colSpan={6} className="p-3 text-mut">{nr ? `Keine Bestellung mit der Nummer ${nr} gefunden.` : "Keine Bestellungen für diesen Filter."}</td></tr>}
           </tbody>
         </table>
       </div>

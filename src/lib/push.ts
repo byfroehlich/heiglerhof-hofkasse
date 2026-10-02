@@ -2,7 +2,7 @@ import "server-only";
 import webpush from "web-push";
 import { db } from "./supabase";
 import { env } from "./env";
-import { eur } from "./format";
+import { bestellNr, eur } from "./format";
 
 export type PushArt = "kauf" | "knapp" | "leer";
 type Nachricht = { title: string; body: string; url?: string; tag?: string };
@@ -55,14 +55,14 @@ const ART_TEXT: Record<string, string> = { paid: "PayPal", cash: "bar", transfer
 /** Mitteilung „Neuer Kauf“ für eine Bestellung. */
 export async function kaufPush(orderId: string) {
   const { data: o } = await db().from("orders")
-    .select("nr, status, total_cents, locations!inner(name), order_items(name_snapshot, quantity)")
+    .select("nr, created_at, status, total_cents, locations!inner(name), order_items(name_snapshot, quantity)")
     .eq("id", orderId)
-    .maybeSingle<{ nr: number; status: string; total_cents: number; locations: { name: string }; order_items: { name_snapshot: string; quantity: number }[] }>();
+    .maybeSingle<{ nr: number; created_at: string; status: string; total_cents: number; locations: { name: string }; order_items: { name_snapshot: string; quantity: number }[] }>();
   if (!o) return;
   const pos = o.order_items.map((i) => `${i.quantity}× ${i.name_snapshot}`).join(", ");
   await sendePush("kauf", {
     title: `Neuer Kauf: ${eur(o.total_cents)} · ${o.locations.name}`,
-    body: `${ART_TEXT[o.status] ?? o.status} · ${pos}`.slice(0, 180),
+    body: `${bestellNr(o.nr, o.created_at)} · ${ART_TEXT[o.status] ?? o.status} · ${pos}`.slice(0, 180),
     url: "/admin/bestellungen", tag: `kauf-${o.nr}`,
   });
 }
