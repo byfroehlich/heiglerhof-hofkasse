@@ -8,9 +8,10 @@ import { PayPalButtons, PayPalScriptProvider } from "@paypal/react-paypal-js";
 import { eur, grundpreisText, inhaltText, alkoholText } from "@/lib/format";
 import type { Location, Partner, ShopProduct } from "@/lib/shop";
 import type { Receipt } from "@/lib/checkout";
+import { paypalAufschlag, type PaypalGebuehr } from "@/lib/pricing";
 import { UeberweisungInfo } from "./ueberweisung";
 
-type Props = { location: Location; partner: Partner; products: ShopProduct[]; paypalClientId: string };
+type Props = { location: Location; partner: Partner; products: ShopProduct[]; paypalClientId: string; gebuehr: PaypalGebuehr | null };
 type Step = "list" | "sum" | "done";
 
 function Werbung({ p, name }: { p: Partner; name: string }) {
@@ -50,7 +51,7 @@ function Head({ title, sub, onBack, logo }: { title: string; sub: string; onBack
   );
 }
 
-export function Kasse({ location, partner, products, paypalClientId }: Props) {
+export function Kasse({ location, partner, products, paypalClientId, gebuehr }: Props) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [step, setStep] = useState<Step>("list");
   const [age, setAge] = useState(false);
@@ -84,6 +85,8 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
   const count = lines.reduce((a, l) => a + l.q, 0);
   // Nur Anzeige. Bezahlt wird der Betrag, den der Server aus der Datenbank rechnet.
   const preview = lines.reduce((a, l) => a + l.p.price_cents * l.q, 0);
+  // Nur Anzeige. Den echten Aufschlag rechnet der Server mit derselben Formel.
+  const aufschlag = paypalAufschlag(preview, gebuehr);
   const hasAlc = lines.some((l) => l.p.alkohol);
   const blocked = hasAlc && !age;
   const body = () => ({ location: location.slug, items: lines.map((l) => ({ product_id: l.p.id, quantity: l.q })), ...(hasAlc ? { age_confirmed: age } : {}) });
@@ -127,7 +130,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
         <div className="mx-auto mt-10 grid h-20 w-20 place-items-center rounded-full bg-ok text-4xl text-white">✓</div>
         <h1 className="mt-4 font-brush text-5xl text-or">Vergelt&apos;s Gott!</h1>
         <p className="mt-2 text-xl">
-          {done.status === "cash" ? `Danke fürs Vertrauen · ${eur(done.total_cents)} in die Kasse` : done.status === "transfer" ? `Fast fertig · bitte ${eur(done.total_cents)} überweisen` : done.status === "paid" ? `Zahlung eingegangen · ${eur(done.total_cents)}` : `Zahlung wird geprüft · ${eur(done.total_cents)}`}
+          {done.status === "cash" ? `Danke fürs Vertrauen · ${eur(done.total_cents)} in die Kasse` : done.status === "transfer" ? `Fast fertig · bitte ${eur(done.total_cents)} überweisen` : done.status === "paid" ? `Zahlung eingegangen · ${eur(done.total_cents + done.gebuehr_cents)}` : `Zahlung wird geprüft · ${eur(done.total_cents + done.gebuehr_cents)}`}
         </p>
         <p className="text-sm text-mut">Bestellung {done.ref}</p>
         {done.ueberweisung && <UeberweisungInfo u={done.ueberweisung} />}
@@ -135,6 +138,7 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
           {done.items.map((i) => (
             <div key={i.label} className="flex justify-between py-1 tnum"><span>{i.quantity} × {i.label}</span><span>{eur(i.unit_price_cents * i.quantity)}</span></div>
           ))}
+          {done.gebuehr_cents > 0 && <div className="flex justify-between py-1 text-mut tnum"><span>PayPal Gebühr</span><span>{eur(done.gebuehr_cents)}</span></div>}
         </div>
         <div className="mt-3 rounded-xl bg-cream p-4 text-left">
           <div className="text-xl font-bold">Hat&apos;s geschmeckt?</div>
@@ -172,13 +176,23 @@ export function Kasse({ location, partner, products, paypalClientId }: Props) {
           <h2 className="mt-5 text-lg font-semibold">Wie wollt ihr bezahlen?</h2>
           <div aria-busy={busy !== null} className={busy ? "pointer-events-none select-none" : ""}>
           {busy && <p role="status" className="mt-2 flex items-center gap-2 rounded-xl bg-orl p-3 font-semibold"><span className="h-4 w-4 animate-spin rounded-full border-2 border-or border-t-transparent" aria-hidden />Wird gebucht, bitte kurz warten …</p>}
+          {location.paypal && aufschlag > 0 && (
+            <div className="mt-2 rounded-xl bg-cream p-3 leading-snug">
+              <div className="flex justify-between tnum"><span>Mit PayPal</span><span>{eur(preview)} + {eur(aufschlag)} Gebühr</span></div>
+              <div className="flex justify-between font-bold tnum"><span>Ihr zahlt mit PayPal</span><span>{eur(preview + aufschlag)}</span></div>
+              <p className="mt-1 text-sm text-mut">
+                PayPal berechnet uns für jede Zahlung eine Gebühr. Die geben wir genau so weiter, ohne Aufschlag für uns.
+                {(location.ueberweisung || location.bar) && ` ${location.ueberweisung && location.bar ? "Per Überweisung und bar" : location.ueberweisung ? "Per Überweisung" : "Bar"} zahlt ihr nur ${eur(preview)}.`}
+              </p>
+            </div>
+          )}
           {location.paypal && <div className={`mt-2 ${blocked || (busy && busy !== "paypal") ? "pointer-events-none opacity-40" : ""}`} aria-disabled={blocked || busy !== null}>
             {paypalClientId ? (
               <PayPalScriptProvider options={{ clientId: paypalClientId, currency: "EUR", intent: "capture", locale: "de_DE", components: "buttons", disableFunding: "card,sepa,giropay,sofort,eps,bancontact,blik,ideal,mybank,p24" }}>
                 <PayPalButtons
                   style={{ layout: "vertical", color: "gold", shape: "rect", label: "pay", height: 48 }}
                   disabled={blocked || busy !== null}
-                  forceReRender={[preview, age]}
+                  forceReRender={[preview, aufschlag, age]}
                   onClick={(_, actions) => (lock.current ? actions.reject() : actions.resolve())}
                   createOrder={async () => {
                     if (!sperren("paypal")) throw new Error("Es läuft schon eine Zahlung.");

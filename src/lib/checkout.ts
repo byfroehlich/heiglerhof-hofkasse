@@ -2,7 +2,8 @@ import "server-only";
 import { bestellNr, verwendungszweck } from "./format";
 import { db } from "./supabase";
 import { loadShop } from "./shop";
-import { buildQuote, QuoteError, toPayPalValue } from "./pricing";
+import { buildQuote, paypalAufschlag, QuoteError, toPayPalValue } from "./pricing";
+import { paypalGebuehr } from "./gebuehr";
 import { createPayPalOrder, capturePayPalOrder } from "./paypal";
 import { notifyLowStock, type LowStock } from "./notify";
 import { bestandPush, kaufPush, protokolliere } from "./push";
@@ -14,7 +15,7 @@ export class CheckoutError extends Error {
 }
 
 export type Ueberweisung = { empfaenger: string; iban: string; bic: string; betrag_cents: number; zweck: string; qr: string };
-export type Receipt = { ueberweisung?: Ueberweisung; nr: number; ref: string; total_cents: number; status: "paid" | "cash" | "review" | "transfer"; items: { label: string; quantity: number; unit_price_cents: number }[] };
+export type Receipt = { ueberweisung?: Ueberweisung; nr: number; ref: string; total_cents: number; gebuehr_cents: number; status: "paid" | "cash" | "review" | "transfer"; items: { label: string; quantity: number; unit_price_cents: number }[] };
 
 async function prepare(input: CheckoutInput) {
   const shop = await loadShop(input.location);
@@ -46,8 +47,10 @@ export async function startPayPalCheckout(input: CheckoutInput): Promise<{ paypa
   if (!shop.location.paypal) throw new CheckoutError("PayPal ist hier gerade nicht möglich. Bitte bar zahlen.", 403);
   const order = await insertOrder(shop.location.id, "created", quote.lines);
   if (order.total !== quote.total_cents) throw new Error("Summenabweichung Server/DB");
-  const paypalId = await createPayPalOrder(order.order_id, order.order_nr, quote, shop.location.name);
-  const { error } = await db().from("orders").update({ paypal_order_id: paypalId }).eq("id", order.order_id);
+  // PayPal-Gebühr nur hier auf dem Server berechnen, nie vom Client übernehmen
+  const gebuehr = paypalAufschlag(order.total, await paypalGebuehr());
+  const paypalId = await createPayPalOrder(order.order_id, order.order_nr, quote, shop.location.name, gebuehr);
+  const { error } = await db().from("orders").update({ paypal_order_id: paypalId, ...(gebuehr ? { gebuehr_cents: gebuehr } : {}) }).eq("id", order.order_id);
   if (error) throw error;
   return { paypal_order_id: paypalId };
 }
@@ -56,9 +59,9 @@ export async function startPayPalCheckout(input: CheckoutInput): Promise<{ paypa
 export async function finishPayPalCheckout(paypalOrderId: string): Promise<Receipt> {
   const { data: order } = await db()
     .from("orders")
-    .select("id, nr, status, total_cents, currency")
+    .select("id, nr, status, total_cents, gebuehr_cents, currency")
     .eq("paypal_order_id", paypalOrderId)
-    .maybeSingle<{ id: string; nr: number; status: string; total_cents: number; currency: string }>();
+    .maybeSingle<{ id: string; nr: number; status: string; total_cents: number; gebuehr_cents: number; currency: string }>();
   if (!order) throw new CheckoutError("Bestellung nicht gefunden.", 404);
   if (order.status === "paid") return receipt(order.id); // doppelter Aufruf: nichts doppelt buchen
   if (order.status !== "created") throw new CheckoutError("Diese Bestellung ist schon abgeschlossen.", 409);
@@ -67,7 +70,7 @@ export async function finishPayPalCheckout(paypalOrderId: string): Promise<Recei
   const ok =
     cap.status === "COMPLETED" &&
     cap.captureStatus === "COMPLETED" &&
-    cap.amountValue === toPayPalValue(order.total_cents) &&
+    cap.amountValue === toPayPalValue(order.total_cents + order.gebuehr_cents) &&
     cap.currency === order.currency &&
     cap.customId === order.id;
 
@@ -129,14 +132,15 @@ async function bookStock(orderId: string) {
 async function receipt(orderId: string): Promise<Receipt> {
   const { data, error } = await db()
     .from("orders")
-    .select("nr, created_at, total_cents, status, order_items(name_snapshot, quantity, unit_price_cents)")
+    .select("nr, created_at, total_cents, gebuehr_cents, status, order_items(name_snapshot, quantity, unit_price_cents)")
     .eq("id", orderId)
-    .single<{ nr: number; created_at: string; total_cents: number; status: Receipt["status"]; order_items: { name_snapshot: string; quantity: number; unit_price_cents: number }[] }>();
+    .single<{ nr: number; created_at: string; total_cents: number; gebuehr_cents: number; status: Receipt["status"]; order_items: { name_snapshot: string; quantity: number; unit_price_cents: number }[] }>();
   if (error) throw error;
   return {
     nr: data.nr,
     ref: bestellNr(data.nr, data.created_at),
     total_cents: data.total_cents,
+    gebuehr_cents: data.gebuehr_cents,
     status: data.status,
     items: data.order_items.map((i) => ({ label: i.name_snapshot, quantity: i.quantity, unit_price_cents: i.unit_price_cents })),
   };

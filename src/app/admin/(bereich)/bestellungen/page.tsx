@@ -10,7 +10,7 @@ const STATUS: Record<string, { t: string; c: string }> = {
 };
 
 type W = { ist: number; soll: number; warn: number; locations: { name: string }; products: ProduktKurz };
-type O = { id: string; nr: number; status: string; total_cents: number; created_at: string; locations: { name: string }; order_items: { name_snapshot: string; quantity: number }[] };
+type O = { id: string; nr: number; status: string; total_cents: number; gebuehr_cents: number; created_at: string; locations: { name: string }; order_items: { name_snapshot: string; quantity: number }[] };
 
 export default async function Bestellungen({ searchParams }: PageProps<"/admin/bestellungen">) {
   const sp = await searchParams;
@@ -21,7 +21,7 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin/b
   // Jahr (4 Ziffern mit Bindestrich danach) überspringen, die laufende Nummer zählt
   const nr = /(?:\b\d{4}\s*[-/]\s*)?(\d{1,9})/.exec(suche)?.[1];
   const { data: locations } = await db().from("locations").select("id, name").order("name");
-  let q = db().from("orders").select("id, nr, status, total_cents, created_at, locations!inner(name), order_items(name_snapshot, quantity)").order("created_at", { ascending: false }).limit(200);
+  let q = db().from("orders").select("id, nr, status, total_cents, gebuehr_cents, created_at, locations!inner(name), order_items(name_snapshot, quantity)").order("created_at", { ascending: false }).limit(200);
   if (loc) q = q.eq("location_id", loc);
   if (st) q = q.eq("status", st);
   if (nr) q = q.eq("nr", Number(nr));
@@ -77,7 +77,7 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin/b
                 <td className="whitespace-nowrap p-2">{new Date(o.created_at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })}</td>
                 <td className="p-2">{o.locations.name}</td>
                 <td className="p-2">{o.order_items.map((i) => (i.quantity > 1 ? `${i.quantity} × ` : "") + i.name_snapshot).join(", ")}</td>
-                <td className="p-2 text-right">{eur(o.total_cents)}</td>
+                <td className="p-2 text-right">{eur(o.total_cents)}{o.gebuehr_cents > 0 && <div className="whitespace-nowrap text-xs text-mut">+ {eur(o.gebuehr_cents)} PayPal Gebühr</div>}</td>
                 <td className="p-2">
                   <span className={`pill ${STATUS[o.status]?.c}`}>{STATUS[o.status]?.t ?? o.status}</span>
                   {o.status === "transfer" && <form action={markTransferPaid.bind(null, o.id)} className="mt-1"><SendenKnopf arbeit="Wird gespeichert …">Geld ist da</SendenKnopf></form>}

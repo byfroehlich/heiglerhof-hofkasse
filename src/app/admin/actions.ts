@@ -277,6 +277,23 @@ export async function saveBank(_: FormState, form: FormData): Promise<FormState>
   return { ok: "Gespeichert. Jetzt bei den gewünschten Verkaufsstellen den Schalter Überweisung einschalten." };
 }
 
+/** PayPal-Gebühr an Gäste weitergeben: an/aus, Prozent und fester Betrag (wie im PayPal-Konto). */
+export async function savePaypalGebuehr(_: FormState, form: FormData): Promise<FormState> {
+  const me = await requireAdmin();
+  const zahl = (k: string) => Number(String(form.get(k) ?? "").trim().replace(/\s*(%|€)\s*$/, "").replace(",", "."));
+  const prozent = zahl("prozent"), fix = zahl("fix");
+  if (!Number.isFinite(prozent) || prozent < 0 || prozent > 10) return { error: "Prozent bitte zwischen 0 und 10 eintragen, zum Beispiel 2,99." };
+  if (!Number.isFinite(fix) || fix < 0 || fix > 2) return { error: "Festen Betrag bitte zwischen 0 und 2 Euro eintragen, zum Beispiel 0,39." };
+  const aktiv = form.get("aktiv") === "on";
+  const { error } = await db().from("einstellungen").update({
+    paypal_gebuehr_aktiv: aktiv, paypal_gebuehr_bp: Math.round(prozent * 100), paypal_gebuehr_fix_cents: Math.round(fix * 100),
+    geaendert_am: new Date().toISOString(), geaendert_von: me.email,
+  }).eq("id", 1);
+  if (error) return { error: "Speichern hat nicht geklappt. Ist SQL 0009 eingespielt?" };
+  revalidatePath("/admin", "layout");
+  return { ok: aktiv ? "Gespeichert. Gäste sehen die PayPal Gebühr ab sofort an der Kasse." : "Gespeichert. PayPal kostet für Gäste jetzt nichts extra." };
+}
+
 // ---------- Push-Mitteilungen ----------
 type PushAbo = { endpoint: string; keys: { p256dh: string; auth: string } };
 const pushOk = (a: unknown): a is PushAbo => {

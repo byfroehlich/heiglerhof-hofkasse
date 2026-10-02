@@ -43,3 +43,14 @@ export function buildQuote(items: CheckoutInput["items"], available: StockedProd
 
 /** Betrag als PayPal-String, z. B. 1250 -> "12.50" */
 export const toPayPalValue = (cents: number) => (cents / 100).toFixed(2);
+
+export type PaypalGebuehr = { bp: number; fix_cents: number };
+
+/**
+ * Aufschlag bei PayPal: so viel, dass nach Abzug der PayPal-Gebühr (Prozent + fester Betrag)
+ * genau der Warenwert übrig bleibt. Aufgerundet auf ganze Cent. bp = Basispunkte (299 = 2,99 %).
+ */
+export function paypalAufschlag(cents: number, g: PaypalGebuehr | null): number {
+  if (!g || cents <= 0 || (g.bp <= 0 && g.fix_cents <= 0)) return 0;
+  return Math.ceil((cents * g.bp + g.fix_cents * 10000) / (10000 - g.bp));
+}
