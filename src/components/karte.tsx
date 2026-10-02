@@ -35,9 +35,9 @@ function popup(p: KartenPunkt) {
 }
 
 /** Karte mit Punkten und optionaler Linie (Tour). */
-export function Karte({ punkte, linie, className = "h-[420px]" }: { punkte: KartenPunkt[]; linie?: [number, number][]; className?: string }) {
+export function Karte({ punkte, linie, luftlinie = false, className = "h-[420px]" }: { punkte: KartenPunkt[]; linie?: [number, number][]; luftlinie?: boolean; className?: string }) {
   const box = useRef<HTMLDivElement>(null);
-  const key = JSON.stringify([punkte, linie]);
+  const key = JSON.stringify([punkte, linie, luftlinie]);
   useEffect(() => {
     let map: LMap | undefined;
     let aus = false;
@@ -50,7 +50,7 @@ export function Karte({ punkte, linie, className = "h-[420px]" }: { punkte: Kart
         L.marker([p.lat, p.lng], { icon: icon(L, p), title: p.titel, alt: p.titel }).bindPopup(popup(p)).addTo(map);
         ll.push([p.lat, p.lng]);
       }
-      if (linie?.length) L.polyline(linie, { color: FARBE.or, weight: 4, opacity: 0.8, dashArray: "8 8" }).addTo(map);
+      if (linie?.length) L.polyline(linie, { color: FARBE.or, weight: 5, opacity: 0.85, dashArray: luftlinie ? "8 8" : undefined }).addTo(map);
       if (ll.length > 1) map.fitBounds(ll, { padding: [40, 40], maxZoom: 14 });
       else map.setView(ll[0] ?? [47.6152, 10.5208], 13);
     });

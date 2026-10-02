@@ -4,6 +4,7 @@ import { refill } from "../../actions";
 import { STUFE, stufe, type Stufe } from "@/lib/format";
 import { HOF } from "@/lib/hof";
 import { besteTour, km, mapsLinks, rundLaenge } from "@/lib/route";
+import { dauer, strassenTour } from "@/lib/strasse";
 import { Karte, type KartenPunkt } from "@/components/karte";
 import { DruckKnopf } from "@/components/druck-knopf";
 
@@ -43,10 +44,14 @@ export default async function Tour({ searchParams }: PageProps<"/admin/tour">) {
   }
   const mitPunkt = stopps.filter((s): s is Stopp & { lat: number; lng: number } => s.lat != null && s.lng != null);
   const ohnePunkt = stopps.filter((s) => s.lat == null || s.lng == null);
-  const order = besteTour(HOF, mitPunkt);
+  // Erst echte Straßen (Reihenfolge, km und Fahrzeit), ohne Antwort Luftlinie
+  const strasse = await strassenTour(HOF, mitPunkt);
+  const order = strasse?.order ?? besteTour(HOF, mitPunkt);
   const tour = order.map((i) => mitPunkt[i]);
-  const gesamtKm = rundLaenge(HOF, mitPunkt, order);
+  const gesamtKm = strasse?.km ?? rundLaenge(HOF, mitPunkt, order);
+  const abschnitte = strasse?.abschnitte ?? [...tour, HOF].map((s, i) => ({ km: km(i === 0 ? HOF : tour[i - 1], s), min: null as number | null }));
   const links = mapsLinks(HOF, tour);
+  const fmtKm = (x: number) => x.toFixed(1).replace(".", ",");
 
   const pack = new Map<string, { name: string; menge: number; stellen: number }>();
   for (const s of stopps) for (const p of s.pos) {
@@ -60,14 +65,14 @@ export default async function Tour({ searchParams }: PageProps<"/admin/tour">) {
     { id: "hof", lat: HOF.lat, lng: HOF.lng, titel: HOF.name, zeile: "Start und Ziel", farbe: "hof" },
     ...tour.map((s, i) => ({ id: s.id, lat: s.lat, lng: s.lng, titel: `${i + 1}. ${s.name}`, zeile: s.adresse, nr: i + 1, farbe: s.schlimmste === "leer" ? "bad" as const : "warn" as const })),
   ];
-  const linie: [number, number][] = [[HOF.lat, HOF.lng], ...tour.map((s) => [s.lat, s.lng] as [number, number]), [HOF.lat, HOF.lng]];
+  const linie: [number, number][] = strasse?.linie ?? [[HOF.lat, HOF.lng], ...tour.map((s) => [s.lat, s.lng] as [number, number]), [HOF.lat, HOF.lng]];
 
   return (
     <>
       <h1 className="text-3xl font-bold">Nachfülltour</h1>
       <p className="max-w-3xl font-txt text-mut">
         Alle Verkaufsstellen mit Warnung in der kürzesten Reihenfolge ab Hof und zurück. An jeder Stelle wird alles bis zum Sollbestand aufgefüllt,
-        deshalb steht auf der Packliste auch, was noch nicht knapp ist. Die Strecke ist Luftlinie, die echte Fahrt zeigt Google Maps.
+        deshalb steht auf der Packliste auch, was noch nicht knapp ist. Reihenfolge, Kilometer und Fahrzeit kommen aus OpenStreetMap; unterwegs navigiert Google Maps.
       </p>
       <div className="no-print mt-3 flex flex-wrap gap-2">
         <Link href="/admin/tour" className={`btn btn-sm ${nurLeer ? "btn-ghost" : "btn-or"}`}>Gelb und Rot</Link>
@@ -79,10 +84,11 @@ export default async function Tour({ searchParams }: PageProps<"/admin/tour">) {
         <div className="mt-4 rounded-xl bg-cream p-4">Gerade muss nirgends etwas hin. Schöne Pause!</div>
       ) : (
         <>
-          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
             <div className="rounded-xl bg-cream p-3"><b className="block text-2xl tnum">{stopps.length}</b><span className="text-sm text-mut">Stopps</span></div>
             <div className="rounded-xl bg-cream p-3"><b className="block text-2xl tnum">{summe}</b><span className="text-sm text-mut">Stück mitnehmen</span></div>
-            <div className="rounded-xl bg-cream p-3"><b className="block text-2xl tnum">{gesamtKm.toFixed(1).replace(".", ",")} km</b><span className="text-sm text-mut">Luftlinie, hin und zurück</span></div>
+            <div className="rounded-xl bg-cream p-3"><b className="block text-2xl tnum">{fmtKm(gesamtKm)} km</b><span className="text-sm text-mut">{strasse ? "Straße, hin und zurück" : "Luftlinie (Routendienst gerade nicht erreichbar)"}</span></div>
+            <div className="rounded-xl bg-cream p-3"><b className="block text-2xl tnum">{strasse ? dauer(strasse.min) : "–"}</b><span className="text-sm text-mut">reine Fahrzeit{strasse ? ", ohne Stopps" : ""}</span></div>
             <div className="flex flex-col justify-center gap-2 rounded-xl bg-cream p-3">
               {tour.length > 0 ? links.map((u, i) => (
                 <a key={u} href={u} target="_blank" rel="noopener noreferrer" className="btn btn-or btn-sm">🚗 Route in Google Maps{links.length > 1 ? ` (Teil ${i + 1})` : ""}</a>
@@ -90,7 +96,7 @@ export default async function Tour({ searchParams }: PageProps<"/admin/tour">) {
             </div>
           </div>
 
-          {tour.length > 0 && <div className="no-print mt-4"><Karte punkte={punkte} linie={linie} className="h-[360px] md:h-[440px]" /></div>}
+          {tour.length > 0 && <div className="no-print mt-4"><Karte punkte={punkte} linie={linie} luftlinie={!strasse} className="h-[360px] md:h-[440px]" /></div>}
 
           <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div>
@@ -98,9 +104,9 @@ export default async function Tour({ searchParams }: PageProps<"/admin/tour">) {
               <ol className="mt-2 grid gap-3">
                 <li className="rounded-xl border border-line p-3 text-mut">Start: {HOF.name}, {HOF.adresse}</li>
                 {tour.map((s, i) => (
-                  <StoppKarte key={s.id} s={s} nr={i + 1} weg={km(i === 0 ? HOF : tour[i - 1], s)} />
+                  <StoppKarte key={s.id} s={s} nr={i + 1} weg={abschnitte[i]} />
                 ))}
-                {tour.length > 0 && <li className="rounded-xl border border-line p-3 text-mut">Zurück zum Hof · {km(tour[tour.length - 1], HOF).toFixed(1).replace(".", ",")} km Luftlinie</li>}
+                {tour.length > 0 && <li className="rounded-xl border border-line p-3 text-mut">Zurück zum Hof · <Weg w={abschnitte[tour.length]} /></li>}
               </ol>
               {ohnePunkt.length > 0 && (
                 <>
@@ -132,14 +138,19 @@ export default async function Tour({ searchParams }: PageProps<"/admin/tour">) {
   );
 }
 
-function StoppKarte({ s, nr, weg }: { s: Stopp; nr?: number; weg?: number }) {
+function Weg({ w }: { w?: { km: number; min: number | null } }) {
+  if (!w) return null;
+  return <>{w.km.toFixed(1).replace(".", ",")} km{w.min != null ? ` · ${dauer(w.min)}` : " Luftlinie"}</>;
+}
+
+function StoppKarte({ s, nr, weg }: { s: Stopp; nr?: number; weg?: { km: number; min: number | null } }) {
   return (
     <li className={`rounded-xl border-l-8 bg-cream p-3 ${s.schlimmste === "leer" ? "border-bad" : "border-warn"}`}>
       <div className="flex items-baseline gap-2">
         {nr != null && <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-ink text-sm font-bold text-white">{nr}</span>}
         <div className="min-w-0 flex-1">
           <b className="text-lg">{s.name}</b> <span className="text-sm text-mut">{s.typ}</span>
-          <div className="text-sm text-mut">{s.adresse || "Adresse fehlt"}{weg != null && ` · ${weg.toFixed(1).replace(".", ",")} km Luftlinie`}</div>
+          <div className="text-sm text-mut">{s.adresse || "Adresse fehlt"}{weg && <> · <Weg w={weg} /></>}</div>
         </div>
       </div>
       <ul className="mt-2">
