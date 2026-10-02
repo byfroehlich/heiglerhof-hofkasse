@@ -44,8 +44,9 @@ async function call<T>(path: string, body: unknown, requestId: string): Promise<
   return { status: res.status, data };
 }
 
-export async function createPayPalOrder(orderId: string, orderNr: number, quote: Quote, locationName: string) {
-  const value = toPayPalValue(quote.total_cents);
+export async function createPayPalOrder(orderId: string, orderNr: number, quote: Quote, locationName: string, gebuehrCents = 0) {
+  const value = toPayPalValue(quote.total_cents + gebuehrCents);
+  const itemTotal = toPayPalValue(quote.total_cents);
   const { status, data } = await call<{ id?: string }>(
     "/v2/checkout/orders",
     {
@@ -59,7 +60,11 @@ export async function createPayPalOrder(orderId: string, orderNr: number, quote:
           amount: {
             currency_code: "EUR",
             value,
-            breakdown: { item_total: { currency_code: "EUR", value } },
+            breakdown: {
+              item_total: { currency_code: "EUR", value: itemTotal },
+              // weitergegebene PayPal-Gebühr, im PayPal-Fenster getrennt sichtbar
+              ...(gebuehrCents > 0 ? { handling: { currency_code: "EUR", value: toPayPalValue(gebuehrCents) } } : {}),
+            },
           },
           items: quote.lines.map((l) => ({
             name: l.label.slice(0, 127),

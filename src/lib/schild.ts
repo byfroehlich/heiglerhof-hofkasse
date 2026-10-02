@@ -12,6 +12,7 @@ export type SchildDaten = {
   url: string;
   bar: boolean;
   paypal: boolean;
+  paypalGebuehr: boolean;
   ueberweisung: boolean;
   alkohol: boolean;
 };
@@ -25,7 +26,7 @@ const W = 595.28, H = 841.89, M = 42; // A4 in Punkt, Rand 15 mm
 export function schildTexte(d: SchildDaten) {
   // Alle aktiven Zahlarten gleichwertig, in fester Reihenfolge
   const arten = [
-    d.paypal && { t: "PayPal", x: "Im Handy auf PayPal tippen und bestätigen. Kein Kleingeld nötig." },
+    d.paypal && { t: "PayPal", x: d.paypalGebuehr ? "Im Handy auf PayPal tippen und bestätigen. Die PayPal Gebühr kommt dazu." : "Im Handy auf PayPal tippen und bestätigen. Kein Kleingeld nötig." },
     d.ueberweisung && { t: "Überweisung", x: "Das Handy zeigt IBAN, Betrag und Zweck zum Kopieren in eure Banking App." },
     d.bar && { t: "Bar", x: "Im Handy „bar“ antippen und das Geld in die Kasse legen." },
   ].filter((a): a is { t: string; x: string } => Boolean(a));

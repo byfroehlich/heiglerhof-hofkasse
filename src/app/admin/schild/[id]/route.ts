@@ -3,6 +3,7 @@ import { db } from "@/lib/supabase";
 import { siteUrl } from "@/lib/site";
 import { schildPdf } from "@/lib/schild";
 import { bankdaten } from "@/lib/giro";
+import { paypalGebuehr } from "@/lib/gebuehr";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export async function GET(req: Request, ctx: RouteContext<"/admin/schild/[id]">)
   if (!l) return new Response("Nicht gefunden", { status: 404 });
   const pdf = await schildPdf({
     name: l.name, typ: l.typ, url: `${await siteUrl()}/kasse/${l.slug}`,
-    bar: l.bar_aktiv, paypal: l.paypal_aktiv, ueberweisung: l.ueberweisung_aktiv && (await bankdaten()) !== null,
+    bar: l.bar_aktiv, paypal: l.paypal_aktiv, paypalGebuehr: l.paypal_aktiv && (await paypalGebuehr()) !== null, ueberweisung: l.ueberweisung_aktiv && (await bankdaten()) !== null,
     alkohol: l.location_products.some((x) => x.products?.active && x.products.alkohol_vol != null),
   });
   const download = new URL(req.url).searchParams.get("download") === "1";

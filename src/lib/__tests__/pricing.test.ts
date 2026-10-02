@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildQuote, QuoteError, toPayPalValue, type StockedProduct } from "../pricing";
+import { buildQuote, paypalAufschlag, QuoteError, toPayPalValue, type StockedProduct } from "../pricing";
 import { checkoutSchema, productSchema } from "../validation";
 import { grundpreisText, meldebestand, slugify, inhaltText } from "../format";
 
@@ -80,5 +80,27 @@ describe("format", () => {
   it("PayPal-Betrag", () => {
     expect(toPayPalValue(1250)).toBe("12.50");
     expect(toPayPalValue(5)).toBe("0.05");
+  });
+});
+
+describe("paypalAufschlag", () => {
+  const g = { bp: 299, fix_cents: 39 };
+  it("deckt die PayPal-Gebühr, sodass der Warenwert übrig bleibt", () => {
+    for (const ware of [100, 500, 1000, 2000, 6500, 99999]) {
+      const a = paypalAufschlag(ware, g);
+      const brutto = ware + a;
+      const gebuehr = Math.round(brutto * 0.0299 + 39); // so rechnet PayPal (auf Cent gerundet)
+      expect(brutto - gebuehr).toBeGreaterThanOrEqual(ware);
+      expect(brutto - gebuehr).toBeLessThanOrEqual(ware + 1); // nie mehr als 1 Cent zu viel
+    }
+  });
+  it("Beispiele: 5 €, 10 €, 20 €", () => {
+    expect(paypalAufschlag(500, g)).toBe(56);
+    expect(paypalAufschlag(1000, g)).toBe(72);
+    expect(paypalAufschlag(2000, g)).toBe(102);
+  });
+  it("aus oder null ergibt 0", () => {
+    expect(paypalAufschlag(1000, null)).toBe(0);
+    expect(paypalAufschlag(1000, { bp: 0, fix_cents: 0 })).toBe(0);
   });
 });

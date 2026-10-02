@@ -18,10 +18,10 @@ export async function POST(req: Request) {
   if (!r.custom_id || !r.id) return NextResponse.json({ ok: true });
 
   if (body.event_type === "PAYMENT.CAPTURE.COMPLETED") {
-    const { data: order } = await db().from("orders").select("id, total_cents, currency, status").eq("id", r.custom_id)
-      .maybeSingle<{ id: string; total_cents: number; currency: string; status: string }>();
+    const { data: order } = await db().from("orders").select("id, total_cents, gebuehr_cents, currency, status").eq("id", r.custom_id)
+      .maybeSingle<{ id: string; total_cents: number; gebuehr_cents: number; currency: string; status: string }>();
     if (order && order.status === "created") {
-      const ok = r.amount?.value === (order.total_cents / 100).toFixed(2) && r.amount?.currency_code === order.currency;
+      const ok = r.amount?.value === ((order.total_cents + order.gebuehr_cents) / 100).toFixed(2) && r.amount?.currency_code === order.currency;
       await markPaid(order.id, r.id, ok ? "paid" : "review");
     }
   }

@@ -13,7 +13,7 @@ beforeAll(async () => {
   await db.exec(`create schema auth; create table auth.users(id uuid primary key);
     create schema storage; create table storage.buckets(id text primary key, name text, public bool, file_size_limit bigint, allowed_mime_types text[]);
     create role anon; create role authenticated;`);
-  for (const f of ["0001_init.sql", "0002_warnbestand.sql", "0003_warnstufen.sql", "0004_adressen_karte_partner.sql", "0005_zahlarten.sql", "0006_einstellungen.sql", "0007_push.sql", "0008_push_protokoll.sql"]) await db.exec(readFileSync(join(__dirname, "../migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_warnbestand.sql", "0003_warnstufen.sql", "0004_adressen_karte_partner.sql", "0005_zahlarten.sql", "0006_einstellungen.sql", "0007_push.sql", "0008_push_protokoll.sql", "0009_paypal_gebuehr.sql"]) await db.exec(readFileSync(join(__dirname, "../migrations", f), "utf8"));
   loc = (await q<{ id: string }>(`insert into locations(slug,name,typ) values('alpenblick','Ferienwohnung Alpenblick','Ferienwohnung') returning id`))[0].id;
   bl = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents,alkohol_vol) values('Bierlikör',100,'ml',600,21.6) returning id`))[0].id;
   ho = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents) values('Honig',250,'g',650) returning id`))[0].id;
@@ -116,6 +116,18 @@ describe("Einstellungen", () => {
     await expect(q(`update einstellungen set bic='XX' where id=1`)).rejects.toThrow();
     await q(`update einstellungen set iban='DE89370400440532013000', empfaenger='Heiglerhof', bic='COBADEFFXXX' where id=1`);
     expect((await q<{ n: number }>(`select count(*)::int n from einstellungen`))[0].n).toBe(1);
+  });
+});
+
+describe("PayPal-Gebühr", () => {
+  it("ist anfangs aus, mit 2,99 % + 0,39 € und begrenzten Werten", async () => {
+    const [e] = await q<{ paypal_gebuehr_aktiv: boolean; paypal_gebuehr_bp: number; paypal_gebuehr_fix_cents: number }>(`select paypal_gebuehr_aktiv, paypal_gebuehr_bp, paypal_gebuehr_fix_cents from einstellungen`);
+    expect(e).toEqual({ paypal_gebuehr_aktiv: false, paypal_gebuehr_bp: 299, paypal_gebuehr_fix_cents: 39 });
+    await expect(q(`update einstellungen set paypal_gebuehr_bp = 1500`)).rejects.toThrow();
+    await expect(q(`update einstellungen set paypal_gebuehr_fix_cents = -1`)).rejects.toThrow();
+    const [o] = await order("created", [{ product_id: ho, unit_price_cents: 650, quantity: 1 }]);
+    expect((await q<{ g: number }>(`select gebuehr_cents g from orders where id=$1`, [o.order_id]))[0].g).toBe(0);
+    await expect(q(`update orders set gebuehr_cents = -5 where id=$1`, [o.order_id])).rejects.toThrow();
   });
 });
 

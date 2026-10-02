@@ -13,7 +13,7 @@ export default async function Abrechnung({ searchParams }: PageProps<"/admin/abr
   const sp = await searchParams;
   const r = monthRange(typeof sp.monat === "string" ? sp.monat : undefined);
   const { data: locations } = await db().from("locations").select("id, name, typ, active").order("name");
-  const { data: orders } = await db().from("orders").select("location_id, status, total_cents").in("status", ["paid", "cash", "transfer_paid"]).gte("created_at", r.from.toISOString()).lt("created_at", r.to.toISOString());
+  const { data: orders } = await db().from("orders").select("location_id, status, total_cents, gebuehr_cents").in("status", ["paid", "cash", "transfer_paid"]).gte("created_at", r.from.toISOString()).lt("created_at", r.to.toISOString());
   const months = Array.from({ length: 12 }, (_, i) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i); return monthRange(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`); });
   const rows = (locations ?? []).map((l) => {
     const os = (orders ?? []).filter((o) => o.location_id === l.id);
@@ -22,6 +22,7 @@ export default async function Abrechnung({ searchParams }: PageProps<"/admin/abr
     const ue = os.filter((o) => o.status === "transfer_paid").reduce((a, o) => a + o.total_cents, 0);
     return { ...l, n: os.length, pp, bar, ue };
   }).filter((l) => l.active || l.n > 0);
+  const gebuehren = (orders ?? []).filter((o) => o.status === "paid").reduce((a, o) => a + o.gebuehr_cents, 0);
   const t = rows.reduce((a, l) => ({ n: a.n + l.n, pp: a.pp + l.pp, bar: a.bar + l.bar, ue: a.ue + l.ue }), { n: 0, pp: 0, bar: 0, ue: 0 });
 
   return (
@@ -50,6 +51,7 @@ export default async function Abrechnung({ searchParams }: PageProps<"/admin/abr
           </tbody>
         </table>
       </div>
+      {gebuehren > 0 && <p className="mt-3 text-sm text-mut">Zusätzlich haben Gäste {eur(gebuehren)} PayPal Gebühr bezahlt. Die behält PayPal ein, deshalb zählt sie nicht zum Umsatz.</p>}
       <p className="mt-3 text-sm text-mut">Bar ist, was Gäste freiwillig melden. Den echten Kasseninhalt zählt ihr beim Nachfüllen.</p>
     </>
   );
