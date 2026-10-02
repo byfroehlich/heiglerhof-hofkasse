@@ -21,6 +21,12 @@ async function accessToken(): Promise<string> {
   return token.value;
 }
 
+/** Für die Diagnose: passen Client ID, Secret und API-Adresse zusammen? Gibt nie den Token heraus. */
+export async function paypalAnmeldung(): Promise<"ok" | string> {
+  try { await accessToken(); return "ok"; }
+  catch (e) { return (e as Error).message.replace(/^PayPal Token /, "abgelehnt, Status "); }
+}
+
 async function call<T>(path: string, body: unknown, requestId: string): Promise<{ status: number; data: T }> {
   const res = await fetch(`${env.paypalApiBase}${path}`, {
     method: "POST",
