@@ -26,11 +26,12 @@ export async function sendePush(art: PushArt | null, n: Nachricht, nurEndpoint?:
     if (art) q = q.eq(art, true);
     if (nurEndpoint) q = q.eq("endpoint", nurEndpoint);
     const { data: abos } = await q;
-    if (!abos?.length) return 0;
+    if (!abos?.length) { await protokoll(art, n.title, 0, 0, "kein Gerät für diese Art angemeldet"); return 0; }
     const k = await vapid();
     const subject = env.notifyTo ? `mailto:${env.notifyTo.split(",")[0].trim()}` : "mailto:hofkasse@heiglerhof.de";
     const payload = JSON.stringify({ title: n.title, body: n.body, url: n.url ?? "/admin", tag: n.tag });
     let ok = 0;
+    const fehler: string[] = [];
     await Promise.allSettled(abos.map(async (a) => {
       try {
         await webpush.sendNotification({ endpoint: a.endpoint, keys: { p256dh: a.p256dh, auth: a.auth } }, payload, {
@@ -39,15 +40,24 @@ export async function sendePush(art: PushArt | null, n: Nachricht, nurEndpoint?:
         ok++;
       } catch (e) {
         const code = (e as { statusCode?: number }).statusCode;
-        if (code === 404 || code === 410) await db().from("push_abos").delete().eq("id", a.id); // Gerät abgemeldet
-        else console.error("[push]", code ?? e);
+        if (code === 404 || code === 410) { await db().from("push_abos").delete().eq("id", a.id); fehler.push(`Gerät abgemeldet (${code}), entfernt`); }
+        else { console.error("[push]", code ?? e); fehler.push(`Fehler ${code ?? (e as Error).message ?? "unbekannt"}`.slice(0, 120)); }
       }
     }));
+    await protokoll(art, n.title, abos.length, ok, fehler.join("; ") || null);
     return ok;
   } catch (e) {
     console.error("[push]", e);
+    await protokoll(art, n.title, 0, 0, `Abbruch: ${(e as Error).message}`.slice(0, 200));
     return 0;
   }
+}
+
+/** Jede Mitteilung wird protokolliert (Einstellungen → Letzte Mitteilungen). Fehler hier stören nie. */
+async function protokoll(art: PushArt | null, titel: string, geraete: number, erreicht: number, fehler: string | null) {
+  try {
+    await db().from("push_protokoll").insert({ art: art ?? "test", titel: titel.slice(0, 200), geraete, erreicht, fehler });
+  } catch { /* egal */ }
 }
 
 const ART_TEXT: Record<string, string> = { paid: "PayPal", cash: "bar", transfer: "Überweisung angekündigt" };

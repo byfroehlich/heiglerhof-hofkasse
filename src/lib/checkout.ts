@@ -4,7 +4,6 @@ import { db } from "./supabase";
 import { loadShop } from "./shop";
 import { buildQuote, QuoteError, toPayPalValue } from "./pricing";
 import { createPayPalOrder, capturePayPalOrder } from "./paypal";
-import { after } from "next/server";
 import { notifyLowStock, type LowStock } from "./notify";
 import { bestandPush, kaufPush } from "./push";
 import type { CheckoutInput } from "./validation";
@@ -115,8 +114,12 @@ async function bookStock(orderId: string) {
   if (error) { console.error("[bestand]", error.message); return; }
   const low = (data ?? []) as LowStock[];
   await notifyLowStock(low);
-  // Push-Mitteilungen erst nach der Antwort an den Gast verschicken, damit die Kasse nicht wartet
-  after(async () => { await kaufPush(orderId); await bestandPush(low); });
+  // Push-Mitteilungen direkt verschicken (ein Nachlauf nach der Antwort wurde auf Vercel nicht zuverlässig ausgeführt).
+  // Höchstens 4 Sekunden warten, damit die Kasse nie hängt.
+  await Promise.race([
+    (async () => { await kaufPush(orderId); await bestandPush(low); })().catch((e) => console.error("[push]", e)),
+    new Promise((r) => setTimeout(r, 4000)),
+  ]);
 }
 
 async function receipt(orderId: string): Promise<Receipt> {
