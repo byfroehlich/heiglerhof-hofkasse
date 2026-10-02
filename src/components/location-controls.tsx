@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createLocation, removeLocation, setAssortment, setStock } from "@/app/admin/actions";
 
 export function NewLocationForm() {
@@ -19,11 +20,25 @@ export function NewLocationForm() {
 
 export function AssortToggle({ locationId, productId, name, on }: { locationId: string; productId: string; name: string; on: boolean }) {
   const [pending, start] = useTransition();
+  const [checked, setChecked] = useState(on);
+  const [err, setErr] = useState<string | null>(null);
+  const router = useRouter();
   return (
     <label className="flex min-w-0 items-center gap-2">
-      <input type="checkbox" className="h-[18px] w-[18px] accent-[var(--or)]" defaultChecked={on} disabled={pending}
-        onChange={(e) => { const v = e.target.checked; start(() => setAssortment(locationId, productId, v)); }} />
-      <span className="truncate">{name}</span>
+      <input type="checkbox" className="h-5 w-5 flex-none accent-[var(--or)]" checked={checked} disabled={pending}
+        aria-label={`${name} in diesem Sortiment`}
+        onChange={(e) => {
+          const v = e.target.checked;
+          setChecked(v); setErr(null);
+          start(async () => {
+            const r = await setAssortment(locationId, productId, v);
+            if (r?.error) { setChecked(!v); setErr(r.error); }
+            router.refresh();
+          });
+        }} />
+      <span className={`truncate ${checked ? "font-semibold" : "text-mut"}`}>{name}</span>
+      {pending && <span className="text-xs text-mut">speichert …</span>}
+      {err && <span className="text-xs text-bad">{err}</span>}
     </label>
   );
 }
@@ -31,11 +46,25 @@ export function AssortToggle({ locationId, productId, name, on }: { locationId: 
 export function StockInput({ locationId, productId, field, value, label }: { locationId: string; productId: string; field: "ist" | "soll"; value: number; label: string }) {
   const [pending, start] = useTransition();
   const [v, setV] = useState(String(value));
+  const [state, setState] = useState<"" | "ok" | "err">("");
+  const router = useRouter();
+  const save = () => {
+    const n = parseInt(v);
+    if (!Number.isFinite(n) || n === value) return;
+    start(async () => {
+      const r = await setStock(locationId, productId, field, n);
+      setState(r?.error ? "err" : "ok");
+      if (r?.error) setV(String(value));
+      router.refresh();
+    });
+  };
   return (
-    <input aria-label={label} type="number" min={field === "soll" ? 1 : 0} max={999} value={v} disabled={pending}
-      onChange={(e) => setV(e.target.value)}
-      onBlur={() => { const n = parseInt(v); if (Number.isFinite(n) && n !== value) start(() => setStock(locationId, productId, field, n)); }}
-      className="w-12 rounded border border-line bg-paper px-1 text-right tnum" />
+    <input aria-label={label} title={state === "err" ? "Nicht gespeichert" : undefined} type="number" inputMode="numeric"
+      min={field === "soll" ? 1 : 0} max={999} value={v} disabled={pending}
+      onChange={(e) => { setV(e.target.value); setState(""); }}
+      onBlur={save}
+      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+      className={`w-14 rounded border bg-paper px-1.5 py-1 text-right tnum ${state === "ok" ? "border-ok" : state === "err" ? "border-bad" : "border-line"}`} />
   );
 }
 

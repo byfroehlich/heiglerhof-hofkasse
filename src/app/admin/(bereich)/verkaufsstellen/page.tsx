@@ -38,7 +38,8 @@ export default async function Verkaufsstellen() {
                 </div>
                 <div className="h-20 w-20 flex-none bg-paper p-1" aria-label={`QR Code für ${l.name}`} dangerouslySetInnerHTML={{ __html: qr[l.id] }} />
               </div>
-              <div className="mt-3 flex flex-col">
+              <p className="mt-3 text-sm text-mut">Haken setzen, dann Ist (was gerade da ist) und Soll (was da sein soll) eintragen. Speichert beim Verlassen des Feldes.</p>
+              <div className="mt-1 flex flex-col">
                 {(prods ?? []).filter((p) => p.active || lp.has(p.id)).map((p) => {
                   const s = lp.get(p.id);
                   return (
