@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { KassenVorschau } from "@/components/kassen-vorschau";
 import { SendenKnopf } from "@/components/senden-knopf";
 import { qrSvg } from "@/lib/qr";
 import { siteUrl } from "@/lib/site";
@@ -65,7 +66,7 @@ export default async function Verkaufsstellen() {
                   </div>
                   <Link href={`/admin/verkaufsstellen/${l.id}`} className="btn btn-ghost btn-sm mt-1 mr-1">Adresse und Partner</Link>
                   <a href={`/admin/schild/${l.id}?download=1`} download className="btn btn-ghost btn-sm mt-1 mr-1">Schild A4 (PDF)</a>
-                  <a href={`/kasse/${l.slug}`} target="_blank" className="mt-1 inline-block break-all rounded border border-line bg-paper px-1.5 font-mono text-sm">/kasse/{l.slug}</a>
+                  <KassenVorschau pfad={`/kasse/${l.slug}`} name={l.name} className="mt-1 inline-block break-all rounded border border-line bg-paper px-1.5 text-left font-mono text-sm text-or-d underline">/kasse/{l.slug} ansehen</KassenVorschau>
                 </div>
                 <Link href={`/admin/verkaufsstellen/${l.id}`} className="flex flex-none flex-col items-center gap-1 text-xs text-or-d underline" title="Bearbeiten: Adresse, Karte, Partner, QR Code">
                   <span className="block h-24 w-24 rounded bg-paper" aria-label={`QR Code für ${l.name}`} dangerouslySetInnerHTML={{ __html: qr[l.id] }} />
