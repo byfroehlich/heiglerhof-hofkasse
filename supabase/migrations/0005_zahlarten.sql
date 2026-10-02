@@ -51,7 +51,7 @@ begin
 end $$;
 revoke all on function public.create_order(uuid, text, jsonb) from public, anon, authenticated;
 
--- Bestand abbuchen: auch bei Überweisung, die Ware ist ja schon mitgenommen
+-- Bestand abbuchen: auch bei Überweisung, die Ware ist ja schon mitgenommen. Meldung nennt den Zusatz mit.
 create or replace function public.book_stock(p_order uuid)
 returns table (location_name text, product_name text, ist integer, soll integer)
 language plpgsql security definer set search_path = public as $$
@@ -69,7 +69,7 @@ begin
 
   return query
     with low as (
-      select lp.location_id, lp.product_id, l.name as lname, p.name as pname, lp.ist as list, lp.soll as lsoll,
+      select lp.location_id, lp.product_id, l.name as lname, p.name || coalesce(' · ' || p.zusatz, '') as pname, lp.ist as list, lp.soll as lsoll,
              case when lp.ist = 0 then 'leer' else 'knapp' end as lstufe
         from location_products lp
         join locations l on l.id = lp.location_id
