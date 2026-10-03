@@ -6,7 +6,7 @@ import { MENU } from "@/lib/menu";
 
 
 /** Seitenleiste am Computer. Am Handy führt das Logo zum Startbildschirm mit großen Knöpfen. */
-export function AdminNav({ leer, knapp }: { leer: number; knapp: number }) {
+export function AdminNav({ leer, knapp, nb = 0 }: { leer: number; knapp: number; nb?: number }) {
   const path = usePathname();
   const start = path === "/admin";
   const aktuell = MENU.find((i) => path.startsWith(i.href));
@@ -21,6 +21,7 @@ export function AdminNav({ leer, knapp }: { leer: number; knapp: number }) {
               {i.label}
               {i.href === "/admin/nachfuellen" && leer > 0 && <span title="leer" className="ml-1.5 rounded-full bg-bad px-1.5 text-xs font-bold text-white">{leer}</span>}
               {i.href === "/admin/nachfuellen" && knapp > 0 && <span title="Minimum erreicht" className="ml-1 rounded-full bg-warn px-1.5 text-xs font-bold text-white">{knapp}</span>}
+              {i.href === "/admin/nachbestellungen" && nb > 0 && <span title="offene Nachbestellungen" className="ml-1.5 rounded-full bg-[#7a5c9a] px-1.5 text-xs font-bold text-white">{nb}</span>}
             </Link>
           );
         })}
@@ -29,12 +30,15 @@ export function AdminNav({ leer, knapp }: { leer: number; knapp: number }) {
         {start ? <span className="text-xl font-bold">Hofkasse</span> : (
 <span className="truncate text-lg font-semibold">{aktuell?.label}</span>
         )}
-        {(leer > 0 || knapp > 0) && (
-          <Link href="/admin/nachfuellen" className="ml-auto flex flex-none gap-1" aria-label="Warnungen">
-            {leer > 0 && <span className="rounded-full bg-bad px-2 text-sm font-bold text-white">{leer}</span>}
-            {knapp > 0 && <span className="rounded-full bg-warn px-2 text-sm font-bold text-white">{knapp}</span>}
-          </Link>
-        )}
+        <span className="ml-auto flex flex-none gap-1">
+          {nb > 0 && <Link href="/admin/nachbestellungen" aria-label={`${nb} offene Nachbestellungen`} className="rounded-full bg-[#7a5c9a] px-2 text-sm font-bold text-white">📝 {nb}</Link>}
+          {(leer > 0 || knapp > 0) && (
+            <Link href="/admin/nachfuellen" className="flex gap-1" aria-label="Warnungen">
+              {leer > 0 && <span className="rounded-full bg-bad px-2 text-sm font-bold text-white">{leer}</span>}
+              {knapp > 0 && <span className="rounded-full bg-warn px-2 text-sm font-bold text-white">{knapp}</span>}
+            </Link>
+          )}
+        </span>
       </div>
       {/* Am Handy unten quer: mit dem Daumen erreichbar, statt oben links */}
       {!start && (

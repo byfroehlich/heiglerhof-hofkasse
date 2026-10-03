@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const me = await requireAdmin();
+  const { count: nb } = await db().from("nachbestellungen").select("id", { count: "exact", head: true }).eq("status", "offen");
   const { data } = await db().from("location_products").select("ist, warn, locations!inner(active, demo, wiederverkaeufer)").eq("locations.active", true).eq("locations.demo", false).eq("locations.wiederverkaeufer", false);
   const rows = data ?? [];
   const leer = rows.filter((r) => stufe(r.ist, r.warn) === "leer").length;
@@ -21,7 +22,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
         <Link href="/admin" aria-label="Zum Startbildschirm" className="flex-none md:mb-3 md:ml-2">
           <Image src="/logo@2x.png" alt="Heiglerhof" width={96} height={95} className="h-11 w-11 md:h-24 md:w-24" />
         </Link>
-        <AdminNav leer={leer} knapp={knapp} />
+        <AdminNav leer={leer} knapp={knapp} nb={nb ?? 0} />
         <div className="hidden md:mt-auto md:block md:px-2 md:text-sm md:text-mut">
           {me.email}
           <form action={signOut}><button className="mt-1 text-or-d underline">Abmelden</button></form>

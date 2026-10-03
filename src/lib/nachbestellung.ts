@@ -1,9 +1,8 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { db, fotoUrl } from "./supabase";
-import { eur, produktLabel, type Einheit } from "./format";
+import { produktLabel, type Einheit } from "./format";
 import { sendePush } from "./push";
-import { hinweisMail } from "./notify";
 
 export type NbProdukt = { id: string; label: string; haendler_cents: number | null; foto: string | null; farbe: string };
 export type NbOffen = { nr: number; created_at: string; status: string; positionen: { name_snapshot: string; menge: number }[] };
@@ -36,7 +35,7 @@ export async function ladeNachbestellSeite(token: string) {
   return { stelle: l.name, produkte, offen: offen ?? [] };
 }
 
-/** Nachbestellung anlegen (Datenbank prüft Link und Sortiment), dann Push und E-Mail an den Hof. */
+/** Nachbestellung anlegen (Datenbank prüft Link und Sortiment), dann Push an den Hof. Keine E-Mail. */
 export async function erstelleNachbestellung(token: string, items: { product_id: string; menge: number }[], notiz: string) {
   const merged = new Map<string, number>();
   for (const i of items) merged.set(i.product_id, Math.min(99, (merged.get(i.product_id) ?? 0) + i.menge));
@@ -53,10 +52,8 @@ export async function erstelleNachbestellung(token: string, items: { product_id:
   const zeilen = (pos ?? []).map((p) => `${p.menge}× ${p.name_snapshot}`);
   const titel = `Nachbestellung ${r.n_stelle}`;
   await Promise.race([
-    Promise.all([
-      sendePush("nachbestellung", { title: titel, body: `${nbNr(r.n_nr)} · ${zeilen.join(", ")}`.slice(0, 180), url: "/admin/nachbestellungen", tag: `nb-${r.n_nr}` }),
-      hinweisMail(`${titel} (${nbNr(r.n_nr)})`, `${zeilen.join("\n")}${notiz.trim() ? `\n\nNotiz: ${notiz.trim()}` : ""}${r.n_summe ? `\n\nSumme Händlerpreis: ${eur(r.n_summe)}` : ""}\n\nÜbersicht: /admin/nachbestellungen`),
-    ]).catch((e) => console.error("[nachbestellung]", e)),
+    sendePush("nachbestellung", { title: titel, body: `${nbNr(r.n_nr)} · ${zeilen.join(", ")}${notiz.trim() ? ` · Notiz: ${notiz.trim()}` : ""}`.slice(0, 180), url: "/admin/nachbestellungen", tag: `nb-${r.n_nr}` })
+      .catch((e) => console.error("[nachbestellung]", e)),
     new Promise((ok) => setTimeout(ok, 4000)),
   ]);
   return { nr: nbNr(r.n_nr), stelle: r.n_stelle };
