@@ -1,18 +1,25 @@
 import { db } from "@/lib/supabase";
 import { ibanLesbar } from "@/lib/giro";
-import { BankForm, GebuehrForm } from "./form";
+import { BankForm, GebuehrForm, KontaktForm } from "./form";
+import { kontakt } from "@/lib/kontakt";
 import { AppUndPush } from "@/components/app-push";
 import { PushProtokoll } from "./protokoll";
 
 export default async function Einstellungen() {
   const { data } = await db().from("einstellungen").select("iban, empfaenger, bic, geaendert_am, geaendert_von").eq("id", 1).maybeSingle();
   const { data: g } = await db().from("einstellungen").select("paypal_gebuehr_aktiv, paypal_gebuehr_bp, paypal_gebuehr_fix_cents").eq("id", 1).maybeSingle();
+  const k = await kontakt();
   const vercel = !data?.iban && Boolean(process.env.ZAHLUNG_IBAN);
   return (
     <>
       <h1 className="text-3xl font-bold">Einstellungen</h1>
       <AppUndPush />
       <PushProtokoll />
+      <section className="mt-4 max-w-2xl rounded-2xl bg-cream p-4 md:p-6">
+        <h2 className="text-xl font-bold">Ansprechpartner für Gäste</h2>
+        <p className="mt-1 font-txt text-mut">Steht nach dem Kauf in der Kasse, auf der Karte und unten auf dem Verkaufsschild. Leer lassen, dann steht nur die Hofadresse da.</p>
+        <KontaktForm name={k.name ?? ""} telefon={k.telefon ?? ""} />
+      </section>
       <section className="mt-4 max-w-2xl rounded-2xl bg-cream p-4 md:p-6">
         <h2 className="text-xl font-bold">Bankverbindung für Überweisungen</h2>
         <p className="mt-1 font-txt text-mut">

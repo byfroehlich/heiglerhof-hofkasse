@@ -277,6 +277,21 @@ export async function saveBank(_: FormState, form: FormData): Promise<FormState>
   return { ok: "Gespeichert. Jetzt bei den gewünschten Verkaufsstellen den Schalter Überweisung einschalten." };
 }
 
+/** Ansprechpartner für Gäste: steht nach dem Kauf, auf der Karte und auf dem Verkaufsschild. */
+export async function saveKontakt(_: FormState, form: FormData): Promise<FormState> {
+  const me = await requireAdmin();
+  const name = String(form.get("name") ?? "").trim();
+  const telefon = String(form.get("telefon") ?? "").trim().replace(/\s+/g, " ");
+  if (name.length > 40) return { error: "Der Name darf höchstens 40 Zeichen haben." };
+  if (telefon && !/^\+?[0-9 /]{6,25}$/.test(telefon)) return { error: "Bitte nur Ziffern, Leerzeichen, / und ein + am Anfang, zum Beispiel 0176 1234 5678." };
+  const { error } = await db().from("einstellungen").update({
+    kontakt_name: name || null, kontakt_telefon: telefon || null, geaendert_am: new Date().toISOString(), geaendert_von: me.email,
+  }).eq("id", 1);
+  if (error) return { error: "Speichern hat nicht geklappt. Ist SQL 0010 eingespielt?" };
+  revalidatePath("/", "layout");
+  return { ok: "Gespeichert. Verkaufsschilder bitte neu herunterladen, damit die neue Nummer draufsteht." };
+}
+
 /** PayPal-Gebühr an Gäste weitergeben: an/aus, Prozent und fester Betrag (wie im PayPal-Konto). */
 export async function savePaypalGebuehr(_: FormState, form: FormData): Promise<FormState> {
   const me = await requireAdmin();

@@ -10,8 +10,9 @@ import type { Location, Partner, ShopProduct } from "@/lib/shop";
 import type { Receipt } from "@/lib/checkout";
 import { paypalAufschlag, type PaypalGebuehr } from "@/lib/pricing";
 import { UeberweisungInfo } from "./ueberweisung";
+import type { Kontakt } from "@/lib/kontakt";
 
-type Props = { location: Location; partner: Partner; products: ShopProduct[]; paypalClientId: string; gebuehr: PaypalGebuehr | null };
+type Props = { location: Location; partner: Partner; products: ShopProduct[]; paypalClientId: string; gebuehr: PaypalGebuehr | null; kontakt: Kontakt };
 type Step = "list" | "sum" | "done";
 
 function Werbung({ p, name }: { p: Partner; name: string }) {
@@ -51,7 +52,7 @@ function Head({ title, sub, onBack, logo }: { title: string; sub: string; onBack
   );
 }
 
-export function Kasse({ location, partner, products, paypalClientId, gebuehr }: Props) {
+export function Kasse({ location, partner, products, paypalClientId, gebuehr, kontakt }: Props) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [step, setStep] = useState<Step>("list");
   const [age, setAge] = useState(false);
@@ -147,7 +148,10 @@ export function Kasse({ location, partner, products, paypalClientId, gebuehr }: 
               ? "Für größere Mengen, andere Sorten oder Geschenke ruft uns einfach an. Wir richten euch gern was her."
               : "Mehr gibt's bei uns am Hof. Draußen steht unser Verkaufskasten, und nach Anruf richten wir euch gern auch größere Mengen her."}
           </p>
-          <p className="mt-2"><b>Heiglerhof</b> · Wank 6, 87484 Nesselwang · Steffi 0176 9999 8727</p>
+          <p className="mt-2">
+            <b>Heiglerhof</b> · Wank 6, 87484 Nesselwang
+            {(kontakt.name || kontakt.telefon) && <> · {kontakt.name}{kontakt.name && kontakt.telefon ? " " : ""}{kontakt.telefon && <a className="text-or-d underline" href={`tel:${kontakt.telefon.replace(/[ /]/g, "")}`}>{kontakt.telefon}</a>}</>}
+          </p>
           <a className="btn btn-or mt-3 w-full" href="https://www.google.com/maps/search/?api=1&query=Wank+6,+87484+Nesselwang" target="_blank" rel="noopener noreferrer">Weg zum Hof</a>
         </div>
         <button className="btn btn-ghost mt-3 w-full" onClick={() => window.location.reload()}>Noch etwas nehmen</button>
