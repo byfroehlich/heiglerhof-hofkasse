@@ -12,6 +12,14 @@ const nextConfig: NextConfig = {
     // Produktfotos kommen schon im Browser verkleinert an (rund 100 bis 300 KB).
     serverActions: { bodySizeLimit: "3mb" },
   },
+  // Umzug zu TRULOC: alte QR Codes und Nachbestell-Links weiterleiten. Nicht dauerhaft (307),
+  // damit wir zurück können, falls etwas hakt. TRULOC findet die Stelle über den alten Kurznamen.
+  async redirects() {
+    return [
+      { source: "/kasse/:slug", destination: "https://www.truloc.de/kasse/:slug", permanent: false },
+      { source: "/nachbestellen/:token", destination: "https://www.truloc.de/nachbestellen/:token", permanent: false },
+    ];
+  },
   async headers() {
     return [
       {
