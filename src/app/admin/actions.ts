@@ -398,3 +398,11 @@ export async function pushTest(endpoint: string): Promise<FormState> {
   const n = await sendePush(null, { title: "Test von der Hofkasse", body: "Wenn ihr das lest, kommen die Mitteilungen an.", tag: "test" }, endpoint);
   return n ? { ok: "Test verschickt" } : { error: "Nicht angekommen. Die Anmeldung dieses Geräts ist abgelaufen, bitte aus- und wieder einschalten." };
 }
+
+/** Eigene Reihenfolge der Verkaufsstellen (SQL 0015). Nur vorhandene Stellen, Position = Index. */
+export async function stellenReihenfolgeSpeichern(ids: string[]) {
+  await requireAdmin();
+  const liste = [...new Set(ids)].filter((id) => /^[0-9a-f-]{36}$/.test(id)).slice(0, 500);
+  await Promise.all(liste.map((id, i) => db().from("locations").update({ reihenfolge: i }).eq("id", id)));
+  revalidatePath("/admin/verkaufsstellen");
+}
