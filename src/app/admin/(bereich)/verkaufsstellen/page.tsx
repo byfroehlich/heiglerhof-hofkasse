@@ -79,6 +79,7 @@ export default async function Verkaufsstellen() {
                           <div className="mt-1 flex flex-wrap gap-1">
                             <LinkTeilen url={nbUrl(l)!} name={`Nachbestellen ${l.name}`} />
                             <a href={nbUrl(l)!} target="_blank" className="btn btn-ghost btn-sm">Ansehen</a>
+                            <a href={`/admin/nachbestellkarte/${l.id}?download=1`} download className="btn btn-ghost btn-sm">Karte A4 (PDF)</a>
                             <form action={nachbestellLink.bind(null, l.id)}><SendenKnopf arbeit="…" title="Der bisherige Link gilt danach nicht mehr">Neuen Link erzeugen</SendenKnopf></form>
                           </div>
                         </>

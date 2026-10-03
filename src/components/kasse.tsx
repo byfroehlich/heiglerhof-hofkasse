@@ -130,7 +130,7 @@ export function Kasse({ location, partner, products, paypalClientId, gebuehr, ko
       <>
       <main className="mx-auto w-full max-w-xl px-4 pb-12 text-center">
         <div className="mx-auto mt-10 grid h-20 w-20 place-items-center rounded-full bg-ok text-4xl text-white">✓</div>
-        <h1 className="mt-4 font-brush text-5xl text-or">Vergelt&apos;s Gott!</h1>
+        <h1 className="mt-4 font-brush text-5xl text-or">Dankschee!</h1>
         <p className="mt-2 text-xl">
           {done.status === "cash" ? `Danke fürs Vertrauen · ${eur(done.total_cents)} in die Kasse` : done.status === "transfer" ? `Fast fertig · bitte ${eur(done.total_cents)} überweisen` : done.status === "paid" ? `Zahlung eingegangen · ${eur(done.total_cents + done.gebuehr_cents)}` : `Zahlung wird geprüft · ${eur(done.total_cents + done.gebuehr_cents)}`}
         </p>
@@ -236,7 +236,7 @@ export function Kasse({ location, partner, products, paypalClientId, gebuehr, ko
 
   return (
     <>
-      <Head title="Griaß Gott!" sub="Probierprodukte vom Heiglerhof" logo={partner.logo} />
+      <Head title="Griaß di!" sub="Probierprodukte vom Heiglerhof" logo={partner.logo} />
       <main className="mx-auto grid w-full max-w-6xl gap-8 px-4 pb-40 pt-3 md:grid-cols-[minmax(0,1fr)_340px] md:px-10 md:pb-12">
         <div className="min-w-0">
           <div className="flex items-center justify-between rounded-xl bg-cream px-3 py-2">

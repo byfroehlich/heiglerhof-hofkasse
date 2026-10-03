@@ -16,7 +16,7 @@ Jeder Betrieb („Mandant“) pflegt alles selbst im Adminbereich, ohne Vercel o
 | Hof als Startpunkt der Tour (Koordinaten) | Konstante | `src/lib/hof.ts` (genutzt in Tour und Karte) |
 | Logo | PNG im Code und in `public/` | `src/lib/logo-data.ts`, `public/logo*.png`, `src/lib/qr.ts`, `src/lib/schild.ts`, Layouts |
 | Website | `www.heiglerhof.de` | `src/lib/schild.ts`, `src/lib/geo.ts`, `src/lib/strasse.ts` (User-Agent) |
-| Texte und Tonfall | „Griaß Gott!“, „Vergelt’s Gott!“, Allgäu | `kasse.tsx`, `schild.ts`, `page.tsx` |
+| Texte und Tonfall | „Griaß di!“, „Dankschee und pfiat di!“, Allgäu | `kasse.tsx`, `schild.ts`, `page.tsx` |
 | Farben und Schriften | Orange `#e48500`, Barlow Condensed, Vollkorn, Caveat Brush | `src/app/globals.css`, `src/lib/schild.ts`, `src/app/layout.tsx` |
 | Bestellnummer-Präfix und Verwendungszweck | „HH 1023 Heiglerhof“ | `src/lib/checkout.ts`, `src/lib/paypal.ts` (invoice_id) |
 | PayPal-Zugang | Vercel-Variablen (Client ID, Secret, Webhook ID) | `src/lib/env.ts`, `src/lib/paypal.ts` |
