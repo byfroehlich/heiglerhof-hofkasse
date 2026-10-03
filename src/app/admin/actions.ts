@@ -194,7 +194,7 @@ export async function saveLocation(_: FormState, form: FormData): Promise<FormSt
   const s = (k: string) => String(form.get(k) ?? "");
   const parsed = locationEditSchema.safeParse({
     name: s("name"), typ: s("typ"), ort: s("ort"), strasse: s("strasse"), plz: s("plz"), hinweis: s("hinweis"),
-    oeffentlich: form.get("oeffentlich") === "on", lat: s("lat"), lng: s("lng"), werbung_text: s("werbung_text"), werbung_link: s("werbung_link"),
+    oeffentlich: form.get("oeffentlich") === "on", demo: form.get("demo") === "on", lat: s("lat"), lng: s("lng"), werbung_text: s("werbung_text"), werbung_link: s("werbung_link"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Bitte Eingaben prüfen." };
   const d = parsed.data;

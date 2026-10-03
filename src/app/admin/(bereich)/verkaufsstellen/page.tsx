@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { KassenVorschau } from "@/components/kassen-vorschau";
 import { SendenKnopf } from "@/components/senden-knopf";
+import { LinkTeilen } from "@/components/link-teilen";
 import { qrSvg } from "@/lib/qr";
 import { siteUrl } from "@/lib/site";
 import { db, partnerUrl } from "@/lib/supabase";
@@ -9,13 +10,13 @@ import { bankdaten } from "@/lib/giro";
 import { reactivateLocation } from "../../actions";
 import { NewLocationForm, AssortToggle, StockInput, RemoveLocation, Zahlarten } from "@/components/location-controls";
 
-type L = { id: string; slug: string; name: string; typ: string; ort: string | null; strasse: string | null; plz: string | null; lat: number | null; oeffentlich: boolean; logo_path: string | null; bar_aktiv: boolean; paypal_aktiv: boolean; ueberweisung_aktiv: boolean; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number; warn: number }[] };
+type L = { id: string; slug: string; name: string; typ: string; ort: string | null; strasse: string | null; plz: string | null; lat: number | null; oeffentlich: boolean; demo: boolean; logo_path: string | null; bar_aktiv: boolean; paypal_aktiv: boolean; ueberweisung_aktiv: boolean; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number; warn: number }[] };
 
 export default async function Verkaufsstellen() {
   const base = await siteUrl();
   const ueMoeglich = (await bankdaten()) !== null;
   const [{ data: locs }, { data: prods }, { data: counts }] = await Promise.all([
-    db().from("locations").select("id, slug, name, typ, ort, strasse, plz, lat, oeffentlich, logo_path, bar_aktiv, paypal_aktiv, ueberweisung_aktiv, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
+    db().from("locations").select("id, slug, name, typ, ort, strasse, plz, lat, oeffentlich, demo, logo_path, bar_aktiv, paypal_aktiv, ueberweisung_aktiv, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
     db().from("products").select("id, name, zusatz, inhalt, einheit, active").order("name"),
     db().from("orders").select("location_id"),
   ]);
@@ -53,7 +54,8 @@ export default async function Verkaufsstellen() {
                 <span className="flex flex-none flex-col items-end gap-1">
                   {nLeer > 0 && <span className="pill bg-bad">{nLeer} leer</span>}
                   {nKnapp > 0 && <span className="pill bg-warn">{nKnapp} Minimum</span>}
-                  {l.lat == null && <span className="pill bg-[#9a948a]">ohne Karte</span>}
+                  {l.demo && <span className="pill bg-[#2f5d7c]">Demo</span>}
+                  {l.lat == null && !l.demo && <span className="pill bg-[#9a948a]">ohne Karte</span>}
                 </span>
                 <span className="flex-none text-3xl text-mut transition group-open/stelle:rotate-90" aria-hidden>›</span>
               </summary>
@@ -62,16 +64,19 @@ export default async function Verkaufsstellen() {
                 <div className="min-w-0 flex-1">
                   <div className="text-sm text-mut">{[l.strasse, [l.plz, l.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "Adresse fehlt"}</div>
                   <div className="mt-0.5 flex flex-wrap gap-1 text-xs">
-                    {l.lat == null ? <span className="pill bg-warn">kein Kartenpunkt</span> : l.oeffentlich ? <span className="pill bg-ok">auf der Karte</span> : <span className="pill bg-[#9a948a]">nicht öffentlich</span>}
+                    {l.demo ? <span className="pill bg-[#2f5d7c]">Demo: zählt nirgends</span> : l.lat == null ? <span className="pill bg-warn">kein Kartenpunkt</span> : l.oeffentlich ? <span className="pill bg-ok">auf der Karte</span> : <span className="pill bg-[#9a948a]">nicht öffentlich</span>}
                   </div>
-                  <Link href={`/admin/verkaufsstellen/${l.id}`} className="btn btn-ghost btn-sm mt-1 mr-1">Adresse und Partner</Link>
-                  <a href={`/admin/schild/${l.id}?download=1`} download className="btn btn-ghost btn-sm mt-1 mr-1">Schild A4 (PDF)</a>
-                  <KassenVorschau pfad={`/kasse/${l.slug}`} name={l.name} className="mt-1 inline-block break-all rounded border border-line bg-paper px-1.5 text-left font-mono text-sm text-or-d underline">/kasse/{l.slug} ansehen</KassenVorschau>
+                  <div className="mt-2 break-all font-mono text-sm">{base.replace(/^https?:\/\//, "")}/kasse/{l.slug}</div>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    <LinkTeilen url={`${base}/kasse/${l.slug}`} name={l.name} />
+                    <KassenVorschau pfad={`/kasse/${l.slug}`} name={l.name} className="btn btn-ghost btn-sm">Kasse ansehen</KassenVorschau>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    <Link href={`/admin/verkaufsstellen/${l.id}`} className="btn btn-ghost btn-sm">Adresse und Partner bearbeiten</Link>
+                    <a href={`/admin/schild/${l.id}?download=1`} download className="btn btn-ghost btn-sm">Schild A4 (PDF)</a>
+                  </div>
                 </div>
-                <Link href={`/admin/verkaufsstellen/${l.id}`} className="flex flex-none flex-col items-center gap-1 text-xs text-or-d underline" title="Bearbeiten: Adresse, Karte, Partner, QR Code">
-                  <span className="block h-24 w-24 rounded bg-paper" aria-label={`QR Code für ${l.name}`} dangerouslySetInnerHTML={{ __html: qr[l.id] }} />
-                  Bearbeiten · QR
-                </Link>
+                <span className="block h-24 w-24 flex-none rounded bg-paper" role="img" aria-label={`QR Code für ${l.name}`} dangerouslySetInnerHTML={{ __html: qr[l.id] }} />
               </div>
               <Zahlarten locationId={l.id} bar={l.bar_aktiv} paypal={l.paypal_aktiv} ueberweisung={l.ueberweisung_aktiv} ueMoeglich={ueMoeglich} />
               <details className="group mt-3 rounded-lg border border-line bg-paper">

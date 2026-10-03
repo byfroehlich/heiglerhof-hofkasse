@@ -8,8 +8,8 @@ type R = { ist: number; soll: number; warn: number; location_id: string; product
 export default async function Nachfuellen() {
   const { data } = await db()
     .from("location_products")
-    .select("ist, soll, warn, location_id, product_id, locations!inner(name, typ, ort, active), products!inner(name, zusatz, inhalt, einheit)")
-    .eq("locations.active", true)
+    .select("ist, soll, warn, location_id, product_id, locations!inner(name, typ, ort, active, demo), products!inner(name, zusatz, inhalt, einheit)")
+    .eq("locations.active", true).eq("locations.demo", false) // Demo-Verkaufsstelle nie nachfüllen
     .returns<R[]>();
   const rows = (data ?? []).sort((a, b) => a.locations.name.localeCompare(b.locations.name, "de") || produktLabel(a.products).localeCompare(produktLabel(b.products), "de"));
   // Leere zuerst, dann knappe

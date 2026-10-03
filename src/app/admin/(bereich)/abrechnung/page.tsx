@@ -12,7 +12,7 @@ function monthRange(key: string | undefined) {
 export default async function Abrechnung({ searchParams }: PageProps<"/admin/abrechnung">) {
   const sp = await searchParams;
   const r = monthRange(typeof sp.monat === "string" ? sp.monat : undefined);
-  const { data: locations } = await db().from("locations").select("id, name, typ, active").order("name");
+  const { data: locations } = await db().from("locations").select("id, name, typ, active").eq("demo", false).order("name"); // Demo zählt nie
   const { data: orders } = await db().from("orders").select("location_id, status, total_cents, gebuehr_cents").in("status", ["paid", "cash", "transfer_paid"]).gte("created_at", r.from.toISOString()).lt("created_at", r.to.toISOString());
   const months = Array.from({ length: 12 }, (_, i) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i); return monthRange(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`); });
   const rows = (locations ?? []).map((l) => {

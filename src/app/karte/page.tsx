@@ -27,7 +27,7 @@ export default async function KartePage() {
   const { data, error } = await db()
     .from("locations")
     .select("id, name, typ, strasse, plz, ort, hinweis, lat, lng, logo_path, location_products(ist, products(name, zusatz, active))")
-    .eq("active", true).eq("oeffentlich", true).not("lat", "is", null).not("lng", "is", null)
+    .eq("active", true).eq("oeffentlich", true).eq("demo", false).not("lat", "is", null).not("lng", "is", null)
     .order("name")
     .returns<L[]>();
   if (error) throw error;

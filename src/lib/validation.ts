@@ -55,6 +55,7 @@ export const locationEditSchema = locationSchema.extend({
   plz: z.string().trim().regex(/^(\d{4,5})?$/, "PLZ bitte mit 4 oder 5 Ziffern").transform((v) => v || null),
   hinweis: leerNull(200),
   oeffentlich: z.boolean(),
+  demo: z.boolean(),
   lat: koord(-90, 90),
   lng: koord(-180, 180),
   werbung_text: leerNull(300),
