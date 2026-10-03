@@ -12,8 +12,12 @@ import { paypalAufschlag, type PaypalGebuehr } from "@/lib/pricing";
 import { UeberweisungInfo } from "./ueberweisung";
 import type { Kontakt } from "@/lib/kontakt";
 
-type Props = { location: Location; partner: Partner; products: ShopProduct[]; paypalClientId: string; gebuehr: PaypalGebuehr | null; kontakt: Kontakt };
+type Props = { location: Location; partner: Partner; products: ShopProduct[]; paypalClientId: string; gebuehr: PaypalGebuehr | null; kontakt: Kontakt; vorfuehren?: boolean };
 type Step = "list" | "sum" | "done";
+
+function VorfuehrBanner() {
+  return <div role="status" className="bg-[#2f5d7c] px-4 py-1.5 text-center text-sm font-semibold text-white">Vorführmodus: Käufe werden nicht gebucht und nicht gezählt</div>;
+}
 
 function Werbung({ p, name }: { p: Partner; name: string }) {
   if (!p.bild && !p.text) return null;
@@ -52,7 +56,7 @@ function Head({ title, sub, onBack, logo }: { title: string; sub: string; onBack
   );
 }
 
-export function Kasse({ location, partner, products, paypalClientId, gebuehr, kontakt }: Props) {
+export function Kasse({ location, partner, products, paypalClientId, gebuehr, kontakt, vorfuehren = false }: Props) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [step, setStep] = useState<Step>("list");
   const [age, setAge] = useState(false);
@@ -105,7 +109,9 @@ export function Kasse({ location, partner, products, paypalClientId, gebuehr, ko
   async function bezahlen(art: "ueberweisung" | "bar") {
     if (!sperren(art)) return;
     try {
-      const r = await post<Receipt>(art === "bar" ? "/api/checkout/cash" : "/api/checkout/transfer", body());
+      const r = vorfuehren
+        ? await post<Receipt>("/api/checkout/vorfuehrung", { ...body(), art })
+        : await post<Receipt>(art === "bar" ? "/api/checkout/cash" : "/api/checkout/transfer", body());
       setDone(r); setStep("done"); setCart({}); router.refresh(); // Bestand neu laden
     } catch (e) { setErr((e as Error).message); router.refresh(); }
     finally { freigeben(); }
@@ -127,11 +133,12 @@ export function Kasse({ location, partner, products, paypalClientId, gebuehr, ko
 
   if (step === "done" && done) {
     return (
+      <>{vorfuehren && <VorfuehrBanner />}
       <main className="mx-auto w-full max-w-xl px-4 pb-12 text-center">
         <div className="mx-auto mt-10 grid h-20 w-20 place-items-center rounded-full bg-ok text-4xl text-white">✓</div>
         <h1 className="mt-4 font-brush text-5xl text-or">Vergelt&apos;s Gott!</h1>
         <p className="mt-2 text-xl">
-          {done.status === "cash" ? `Danke fürs Vertrauen · ${eur(done.total_cents)} in die Kasse` : done.status === "transfer" ? `Fast fertig · bitte ${eur(done.total_cents)} überweisen` : done.status === "paid" ? `Zahlung eingegangen · ${eur(done.total_cents + done.gebuehr_cents)}` : `Zahlung wird geprüft · ${eur(done.total_cents + done.gebuehr_cents)}`}
+          {done.status === "vorfuehrung" ? `Vorführung · ${eur(done.total_cents)} · nichts gebucht, nichts gezählt` : done.status === "cash" ? `Danke fürs Vertrauen · ${eur(done.total_cents)} in die Kasse` : done.status === "transfer" ? `Fast fertig · bitte ${eur(done.total_cents)} überweisen` : done.status === "paid" ? `Zahlung eingegangen · ${eur(done.total_cents + done.gebuehr_cents)}` : `Zahlung wird geprüft · ${eur(done.total_cents + done.gebuehr_cents)}`}
         </p>
         <p className="text-sm text-mut">Bestellung {done.ref}</p>
         {done.ueberweisung && <UeberweisungInfo u={done.ueberweisung} />}
@@ -157,12 +164,14 @@ export function Kasse({ location, partner, products, paypalClientId, gebuehr, ko
         <button className="btn btn-ghost mt-3 w-full" onClick={() => window.location.reload()}>Noch etwas nehmen</button>
         <Werbung p={partner} name={location.name} />
       </main>
+      </>
     );
   }
 
   if (step === "sum") {
     return (
       <>
+        {vorfuehren && <VorfuehrBanner />}
         <Head title="Eure Auswahl" sub={location.name} onBack={busy ? undefined : () => setStep("list")} />
         <main className="mx-auto w-full max-w-xl px-4 pb-12 pt-4">
           {lines.map((l) => (
@@ -180,7 +189,8 @@ export function Kasse({ location, partner, products, paypalClientId, gebuehr, ko
           <h2 className="mt-5 text-lg font-semibold">Wie wollt ihr bezahlen?</h2>
           <div aria-busy={busy !== null} className={busy ? "pointer-events-none select-none" : ""}>
           {busy && <p role="status" className="mt-2 flex items-center gap-2 rounded-xl bg-orl p-3 font-semibold"><span className="h-4 w-4 animate-spin rounded-full border-2 border-or border-t-transparent" aria-hidden />Wird gebucht, bitte kurz warten …</p>}
-          {location.paypal && aufschlag > 0 && (
+          {vorfuehren && location.paypal && <p className="mt-2 rounded-xl bg-cream p-3 text-mut">PayPal ist im Vorführmodus aus, dort würde echtes Geld fließen.</p>}
+          {!vorfuehren && location.paypal && aufschlag > 0 && (
             <div className="mt-2 rounded-xl bg-cream p-3 leading-snug">
               <div className="flex justify-between tnum"><span>Mit PayPal</span><span>{eur(preview)} + {eur(aufschlag)} Gebühr</span></div>
               <div className="flex justify-between font-bold tnum"><span>Ihr zahlt mit PayPal</span><span>{eur(preview + aufschlag)}</span></div>
@@ -190,7 +200,7 @@ export function Kasse({ location, partner, products, paypalClientId, gebuehr, ko
               </p>
             </div>
           )}
-          {location.paypal && <div className={`mt-2 ${blocked || (busy && busy !== "paypal") ? "pointer-events-none opacity-40" : ""}`} aria-disabled={blocked || busy !== null}>
+          {!vorfuehren && location.paypal && <div className={`mt-2 ${blocked || (busy && busy !== "paypal") ? "pointer-events-none opacity-40" : ""}`} aria-disabled={blocked || busy !== null}>
             {paypalClientId ? (
               <PayPalScriptProvider options={{ clientId: paypalClientId, currency: "EUR", intent: "capture", locale: "de_DE", components: "buttons", disableFunding: "card,sepa,giropay,sofort,eps,bancontact,blik,ideal,mybank,p24" }}>
                 <PayPalButtons
@@ -234,6 +244,7 @@ export function Kasse({ location, partner, products, paypalClientId, gebuehr, ko
 
   return (
     <>
+      {vorfuehren && <VorfuehrBanner />}
       <Head title="Griaß Gott!" sub="Probierprodukte vom Heiglerhof" logo={partner.logo} />
       <main className="mx-auto grid w-full max-w-6xl gap-8 px-4 pb-40 pt-3 md:grid-cols-[minmax(0,1fr)_340px] md:px-10 md:pb-12">
         <div className="min-w-0">

@@ -65,7 +65,7 @@ async function protokoll(art: PushArt | null, titel: string, geraete: number, er
   } catch { /* egal */ }
 }
 
-const ART_TEXT: Record<string, string> = { paid: "PayPal", cash: "bar", transfer: "Überweisung angekündigt" };
+const ART_TEXT: Record<string, string> = { paid: "PayPal", cash: "bar", transfer: "Überweisung angekündigt", vorfuehrung: "nur Vorführung, nichts gebucht" };
 
 /** Mitteilung „Neuer Kauf“ für eine Bestellung. */
 export async function kaufPush(orderId: string) {
@@ -76,7 +76,7 @@ export async function kaufPush(orderId: string) {
   if (!o) return;
   const pos = o.order_items.map((i) => `${i.quantity}× ${i.name_snapshot}`).join(", ");
   await sendePush("kauf", {
-    title: `Neuer Kauf: ${eur(o.total_cents)} · ${o.locations.name}`,
+    title: `${o.status === "vorfuehrung" ? "Vorführung" : "Neuer Kauf"}: ${eur(o.total_cents)} · ${o.locations.name}`,
     body: `${bestellNr(o.nr, o.created_at)} · ${ART_TEXT[o.status] ?? o.status} · ${pos}`.slice(0, 180),
     url: "/admin/bestellungen", tag: `kauf-${o.nr}`,
   });

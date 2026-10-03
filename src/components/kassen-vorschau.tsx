@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 /**
  * Öffnet die Kasse einer Verkaufsstelle als Popup über dem Admin.
@@ -9,10 +9,13 @@ import { useRef } from "react";
 export function KassenVorschau({ pfad, name, className, children }: { pfad: string; name: string; className?: string; children: React.ReactNode }) {
   const dlg = useRef<HTMLDialogElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
+  // Vorführmodus ist voreingestellt: Käufe zum Zeigen landen nicht in Bestand und Statistik
+  const [vorf, setVorf] = useState(true);
+  const laden = (v: boolean) => { if (frame.current) frame.current.src = v ? `${pfad}?vorfuehren=1` : pfad; };
   return (
     <>
       <button type="button" className={className} onClick={() => {
-        if (frame.current) frame.current.src = pfad; // jedes Mal frisch laden
+        laden(vorf); // jedes Mal frisch laden
         dlg.current?.showModal();
       }}>
         {children}
@@ -22,7 +25,11 @@ export function KassenVorschau({ pfad, name, className, children }: { pfad: stri
         onClose={() => { if (frame.current) frame.current.src = "about:blank"; }}>
         <div className="flex h-full flex-col">
           <div className="flex items-center gap-2 border-b border-line bg-cream px-3 py-2" style={{ paddingTop: "max(.5rem, env(safe-area-inset-top))" }}>
-            <span className="min-w-0 flex-1 text-sm leading-tight"><span className="block truncate text-mut">Kasse · {name}</span><span className="block text-xs text-bad">Wie beim Gast: Käufe hier sind echt.</span></span>
+            <span className="min-w-0 flex-1 text-sm leading-tight"><span className="block truncate text-mut">Kasse · {name}</span>{vorf ? <span className="block text-xs text-[#2f5d7c]">Vorführmodus: nichts wird gebucht.</span> : <span className="block text-xs text-bad">Wie beim Gast: Käufe hier sind echt.</span>}</span>
+            <label className="flex flex-none items-center gap-1.5 text-sm font-semibold">
+              <input type="checkbox" checked={vorf} onChange={(e) => { setVorf(e.target.checked); laden(e.target.checked); }} className="h-5 w-5 accent-[var(--or)]" />
+              Vorführen
+            </label>
             <button type="button" className="btn btn-or btn-sm" onClick={() => dlg.current?.close()} autoFocus>✕ Schließen</button>
           </div>
           <iframe ref={frame} title={`Kasse ${name}`} className="w-full flex-1 border-0" />
