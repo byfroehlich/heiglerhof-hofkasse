@@ -15,7 +15,7 @@ export class CheckoutError extends Error {
 }
 
 export type Ueberweisung = { empfaenger: string; iban: string; bic: string; betrag_cents: number; zweck: string; qr: string };
-export type Receipt = { ueberweisung?: Ueberweisung; nr: number; ref: string; total_cents: number; gebuehr_cents: number; status: "paid" | "cash" | "review" | "transfer"; items: { label: string; quantity: number; unit_price_cents: number }[] };
+export type Receipt = { ueberweisung?: Ueberweisung; nr: number; ref: string; total_cents: number; gebuehr_cents: number; status: "paid" | "cash" | "review" | "transfer" | "vorfuehrung"; items: { label: string; quantity: number; unit_price_cents: number }[] };
 
 async function prepare(input: CheckoutInput) {
   const shop = await loadShop(input.location);
@@ -31,7 +31,7 @@ async function prepare(input: CheckoutInput) {
   return { shop, quote };
 }
 
-async function insertOrder(locationId: string, status: "created" | "cash" | "transfer", lines: { product_id: string; unit_price_cents: number; quantity: number }[]) {
+async function insertOrder(locationId: string, status: "created" | "cash" | "transfer" | "vorfuehrung", lines: { product_id: string; unit_price_cents: number; quantity: number }[]) {
   const { data, error } = await db().rpc("create_order", { p_location: locationId, p_status: status, p_items: lines });
   if (error) {
     if (/preis geaendert|bestand|nicht verfuegbar/.test(error.message)) throw new CheckoutError("Das Angebot hat sich gerade geändert. Bitte neu laden.", 409);
@@ -110,6 +110,19 @@ export async function startTransferCheckout(input: CheckoutInput): Promise<Recei
     ...(await receipt(order.order_id)),
     ueberweisung: { empfaenger: bank.empfaenger, iban: ibanLesbar(bank.iban), bic: bank.bic, betrag_cents: order.total, zweck, qr: giroSvg(epcText(bank, order.total, zweck)) },
   };
+}
+
+/** Vorführmodus (nur Admin): Bestellung als „Vorführung“, kein Bestand, keine Statistik. Push kommt trotzdem. */
+export async function startDemoCheckout(input: CheckoutInput, art: "bar" | "ueberweisung"): Promise<Receipt> {
+  const { shop, quote } = await prepare(input);
+  const bank = art === "ueberweisung" ? await bankdaten() : null;
+  if (art === "ueberweisung" && !bank) throw new CheckoutError("Für die Überweisung fehlen die Bankdaten (Einstellungen).", 403);
+  const order = await insertOrder(shop.location.id, "vorfuehrung", quote.lines);
+  await Promise.race([kaufPush(order.order_id).catch((e) => console.error("[push]", e)), new Promise((r) => setTimeout(r, 4000))]);
+  const r = await receipt(order.order_id);
+  if (!bank) return r;
+  const zweck = verwendungszweck(order.order_nr, shop.location.name);
+  return { ...r, ueberweisung: { empfaenger: bank.empfaenger, iban: ibanLesbar(bank.iban), bic: bank.bic, betrag_cents: order.total, zweck, qr: giroSvg(epcText(bank, order.total, zweck)) } };
 }
 
 async function bookStock(orderId: string) {

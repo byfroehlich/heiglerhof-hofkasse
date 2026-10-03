@@ -277,6 +277,16 @@ export async function saveBank(_: FormState, form: FormData): Promise<FormState>
   return { ok: "Gespeichert. Jetzt bei den gewünschten Verkaufsstellen den Schalter Überweisung einschalten." };
 }
 
+/** Bar- oder Überweisungskauf stornieren: bleibt sichtbar, zählt nicht mehr. Bestand auf Wunsch zurück. */
+export async function stornieren(orderId: string, form: FormData) {
+  const me = await requireAdmin();
+  if (!/^[0-9a-f-]{36}$/.test(orderId)) return;
+  const grund = String(form.get("grund") ?? "").trim().slice(0, 100) || "ohne Angabe";
+  const { data, error } = await db().rpc("storno", { p_order: orderId, p_grund: grund, p_zurueck: form.get("zurueck") === "on", p_von: me.email });
+  if (error || data !== "ok") console.error("[storno]", error?.message ?? data);
+  revalidatePath("/admin", "layout");
+}
+
 /** Ansprechpartner für Gäste: steht nach dem Kauf, auf der Karte und auf dem Verkaufsschild. */
 export async function saveKontakt(_: FormState, form: FormData): Promise<FormState> {
   const me = await requireAdmin();

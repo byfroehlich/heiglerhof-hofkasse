@@ -13,7 +13,7 @@ beforeAll(async () => {
   await db.exec(`create schema auth; create table auth.users(id uuid primary key);
     create schema storage; create table storage.buckets(id text primary key, name text, public bool, file_size_limit bigint, allowed_mime_types text[]);
     create role anon; create role authenticated;`);
-  for (const f of ["0001_init.sql", "0002_warnbestand.sql", "0003_warnstufen.sql", "0004_adressen_karte_partner.sql", "0005_zahlarten.sql", "0006_einstellungen.sql", "0007_push.sql", "0008_push_protokoll.sql", "0009_paypal_gebuehr.sql", "0010_kontakt.sql"]) await db.exec(readFileSync(join(__dirname, "../migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_warnbestand.sql", "0003_warnstufen.sql", "0004_adressen_karte_partner.sql", "0005_zahlarten.sql", "0006_einstellungen.sql", "0007_push.sql", "0008_push_protokoll.sql", "0009_paypal_gebuehr.sql", "0010_kontakt.sql", "0011_storno_vorfuehrung.sql"]) await db.exec(readFileSync(join(__dirname, "../migrations", f), "utf8"));
   loc = (await q<{ id: string }>(`insert into locations(slug,name,typ) values('alpenblick','Ferienwohnung Alpenblick','Ferienwohnung') returning id`))[0].id;
   bl = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents,alkohol_vol) values('Bierlikör',100,'ml',600,21.6) returning id`))[0].id;
   ho = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents) values('Honig',250,'g',650) returning id`))[0].id;
@@ -136,6 +136,38 @@ describe("Kontakt", () => {
     await q(`update einstellungen set kontakt_name='Bernd', kontakt_telefon='+49 176 1234 5678'`);
     await expect(q(`update einstellungen set kontakt_telefon='ruf an'`)).rejects.toThrow();
     await expect(q(`update einstellungen set kontakt_name=''`)).rejects.toThrow();
+  });
+});
+
+describe("Stornieren und Vorführung", () => {
+  it("Vorführung bucht keinen Bestand", async () => {
+    const vorher = (await q<{ ist: number }>(`select ist from location_products where product_id=$1`, [ho]))[0].ist;
+    const [o] = await order("vorfuehrung", [{ product_id: ho, unit_price_cents: 650, quantity: 1 }]);
+    expect(await q(`select * from book_stock($1)`, [o.order_id])).toEqual([]);
+    expect((await q<{ ist: number }>(`select ist from location_products where product_id=$1`, [ho]))[0].ist).toBe(vorher);
+    expect((await q<{ r: string }>(`select storno($1,'x',true,'a') r`, [o.order_id]))[0].r).toBe("nicht stornierbar");
+  });
+  it("Storno bucht den Bestand zurück, genau einmal, und merkt Grund und alten Status", async () => {
+    await q(`update location_products set ist = 3 where product_id=$1`, [ho]);
+    const [o] = await order("cash", [{ product_id: ho, unit_price_cents: 650, quantity: 2 }]);
+    await q(`select * from book_stock($1)`, [o.order_id]);
+    expect((await q<{ ist: number }>(`select ist from location_products where product_id=$1`, [ho]))[0].ist).toBe(1);
+    expect((await q<{ r: string }>(`select storno($1,'Vorführung',true,'admin@hof') r`, [o.order_id]))[0].r).toBe("ok");
+    expect((await q<{ ist: number }>(`select ist from location_products where product_id=$1`, [ho]))[0].ist).toBe(3);
+    const [s] = await q<{ status: string; status_vor_storno: string; storno_grund: string; stock_booked: boolean }>(`select status, status_vor_storno, storno_grund, stock_booked from orders where id=$1`, [o.order_id]);
+    expect(s).toEqual({ status: "storniert", status_vor_storno: "cash", storno_grund: "Vorführung", stock_booked: false });
+    expect((await q<{ r: string }>(`select storno($1,'nochmal',true,'a') r`, [o.order_id]))[0].r).toBe("nicht stornierbar");
+    expect((await q<{ ist: number }>(`select ist from location_products where product_id=$1`, [ho]))[0].ist).toBe(3);
+  });
+  it("ohne Zurückbuchen bleibt der Bestand, PayPal ist nicht stornierbar", async () => {
+    await q(`update location_products set ist = 3 where product_id=$1`, [ho]);
+    const [o] = await order("cash", [{ product_id: ho, unit_price_cents: 650, quantity: 1 }]);
+    await q(`select * from book_stock($1)`, [o.order_id]);
+    await q(`select storno($1,'Test',false,'a')`, [o.order_id]);
+    expect((await q<{ ist: number }>(`select ist from location_products where product_id=$1`, [ho]))[0].ist).toBe(2);
+    const [p] = await order("created", [{ product_id: ho, unit_price_cents: 650, quantity: 1 }]);
+    await q(`update orders set status='paid' where id=$1`, [p.order_id]);
+    expect((await q<{ r: string }>(`select storno($1,'x',true,'a') r`, [p.order_id]))[0].r).toBe("nicht stornierbar");
   });
 });
 

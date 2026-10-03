@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SendenKnopf } from "@/components/senden-knopf";
+import { StornoForm } from "@/components/storno-form";
 import { db } from "@/lib/supabase";
 import { bestellNr, eur, produktLabel, stufe, type ProduktKurz } from "@/lib/format";
 import { markTransferPaid } from "../../actions";
@@ -7,10 +8,11 @@ import { markTransferPaid } from "../../actions";
 const STATUS: Record<string, { t: string; c: string }> = {
   paid: { t: "bezahlt", c: "bg-ok" }, cash: { t: "bar", c: "bg-[#5b6f83]" }, created: { t: "offen", c: "bg-[#9a948a]" },
   review: { t: "prüfen", c: "bg-warn" }, transfer: { t: "Überweisung offen", c: "bg-warn" }, transfer_paid: { t: "überwiesen", c: "bg-ok" }, refunded: { t: "erstattet", c: "bg-[#7a5c9a]" }, cancelled: { t: "abgebrochen", c: "bg-[#bbb]" },
+  storniert: { t: "storniert", c: "bg-[#9a948a]" }, vorfuehrung: { t: "Vorführung", c: "bg-[#2f5d7c]" },
 };
 
 type W = { ist: number; soll: number; warn: number; locations: { name: string }; products: ProduktKurz };
-type O = { id: string; nr: number; status: string; total_cents: number; gebuehr_cents: number; created_at: string; locations: { name: string }; order_items: { name_snapshot: string; quantity: number }[] };
+type O = { id: string; nr: number; status: string; total_cents: number; gebuehr_cents: number; storno_grund: string | null; created_at: string; locations: { name: string }; order_items: { name_snapshot: string; quantity: number }[] };
 
 export default async function Bestellungen({ searchParams }: PageProps<"/admin/bestellungen">) {
   const sp = await searchParams;
@@ -21,7 +23,7 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin/b
   // Jahr (4 Ziffern mit Bindestrich danach) überspringen, die laufende Nummer zählt
   const nr = /(?:\b\d{4}\s*[-/]\s*)?(\d{1,9})/.exec(suche)?.[1];
   const { data: locations } = await db().from("locations").select("id, name").order("name");
-  let q = db().from("orders").select("id, nr, status, total_cents, gebuehr_cents, created_at, locations!inner(name), order_items(name_snapshot, quantity)").order("created_at", { ascending: false }).limit(200);
+  let q = db().from("orders").select("id, nr, status, total_cents, gebuehr_cents, storno_grund, created_at, locations!inner(name), order_items(name_snapshot, quantity)").order("created_at", { ascending: false }).limit(200);
   if (loc) q = q.eq("location_id", loc);
   if (st) q = q.eq("status", st);
   if (nr) q = q.eq("nr", Number(nr));
@@ -72,7 +74,7 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin/b
           <thead><tr className="border-b-2 border-ink text-left text-sm text-mut"><th className="p-2">Nr.</th><th className="p-2">Zeit</th><th className="p-2">Verkaufsstelle</th><th className="p-2">Positionen</th><th className="p-2 text-right">Betrag</th><th className="p-2">Status</th></tr></thead>
           <tbody>
             {orders.map((o) => (
-              <tr key={o.id} className="border-b border-[#f1e8d6]">
+              <tr key={o.id} className={`border-b border-[#f1e8d6] ${o.status === "storniert" || o.status === "vorfuehrung" ? "text-mut" : ""}`}>
                 <td className="whitespace-nowrap p-2">{bestellNr(o.nr, o.created_at)}</td>
                 <td className="whitespace-nowrap p-2">{new Date(o.created_at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })}</td>
                 <td className="p-2">{o.locations.name}</td>
@@ -81,6 +83,8 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin/b
                 <td className="p-2">
                   <span className={`pill ${STATUS[o.status]?.c}`}>{STATUS[o.status]?.t ?? o.status}</span>
                   {o.status === "transfer" && <form action={markTransferPaid.bind(null, o.id)} className="mt-1"><SendenKnopf arbeit="Wird gespeichert …">Geld ist da</SendenKnopf></form>}
+                  {o.status === "storniert" && o.storno_grund && <div className="mt-1 text-xs">{o.storno_grund}</div>}
+                  {["cash", "transfer", "transfer_paid"].includes(o.status) && <StornoForm id={o.id} />}
                 </td>
               </tr>
             ))}
