@@ -174,6 +174,8 @@ describe("Stornieren und Vorführung", () => {
 describe("Demo-Verkaufsstelle", () => {
   it("ist standardmäßig aus und räumt Vorführ-Käufe auf", async () => {
     expect((await q<{ demo: boolean }>(`select demo from locations where id=$1`, [loc]))[0].demo).toBe(false);
+    // Ein früherer Test legt einen Vorführ-Kauf an; die Migration ist wiederholbar und räumt ihn weg
+    await db.exec(readFileSync(join(__dirname, "../migrations", "0012_demo_verkaufsstelle.sql"), "utf8"));
     expect((await q<{ n: number }>(`select count(*)::int n from orders where status='vorfuehrung'`))[0].n).toBe(0);
   });
 });
