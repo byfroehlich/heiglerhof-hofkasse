@@ -9,3 +9,11 @@ export const MENU = [
   { href: "/admin/verkaufsstellen", label: "Verkaufsstellen", icon: "📍", info: "Sortiment, Bestand, Zahlarten, Schild" },
   { href: "/admin/einstellungen", label: "Einstellungen", icon: "⚙️", info: "Bankdaten, App und Mitteilungen" },
 ] as const;
+
+export type MenuEintrag = (typeof MENU)[number];
+
+/** Menü in der gespeicherten Reihenfolge; neue oder unbekannte Bereiche hängen hinten an. */
+export function sortiereMenu(reihenfolge: readonly string[] | null | undefined): MenuEintrag[] {
+  const rang = new Map((reihenfolge ?? []).map((h, i) => [h, i]));
+  return [...MENU].sort((a, b) => (rang.get(a.href) ?? 999 + MENU.indexOf(a)) - (rang.get(b.href) ?? 999 + MENU.indexOf(b)));
+}

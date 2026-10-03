@@ -12,6 +12,7 @@ import { hinweisMail } from "@/lib/notify";
 import { sendePush, vapid } from "@/lib/push";
 import { slugify } from "@/lib/format";
 import { neuerToken } from "@/lib/nachbestellung";
+import { MENU } from "@/lib/menu";
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -309,6 +310,15 @@ export async function nachbestellStatus(id: string, status: "geliefert" | "erled
   revalidatePath("/admin", "layout");
 }
 
+/** Reihenfolge der Bereiche (Startbildschirm und Seitenleiste). Nur bekannte Pfade werden gespeichert. */
+export async function menuSpeichern(hrefs: string[]) {
+  await requireAdmin();
+  const erlaubt = new Set<string>(MENU.map((m) => m.href));
+  const liste = [...new Set(hrefs)].filter((h) => erlaubt.has(h));
+  await db().from("einstellungen").update({ menu_reihenfolge: liste }).eq("id", 1);
+  revalidatePath("/admin", "layout");
+}
+
 /** Ansprechpartner für Gäste: steht nach dem Kauf, auf der Karte und auf dem Verkaufsschild. */
 export async function saveKontakt(_: FormState, form: FormData): Promise<FormState> {
   const me = await requireAdmin();
@@ -387,4 +397,12 @@ export async function pushTest(endpoint: string): Promise<FormState> {
   await requireAdmin();
   const n = await sendePush(null, { title: "Test von der Hofkasse", body: "Wenn ihr das lest, kommen die Mitteilungen an.", tag: "test" }, endpoint);
   return n ? { ok: "Test verschickt" } : { error: "Nicht angekommen. Die Anmeldung dieses Geräts ist abgelaufen, bitte aus- und wieder einschalten." };
+}
+
+/** Eigene Reihenfolge der Verkaufsstellen (SQL 0015). Nur vorhandene Stellen, Position = Index. */
+export async function stellenReihenfolgeSpeichern(ids: string[]) {
+  await requireAdmin();
+  const liste = [...new Set(ids)].filter((id) => /^[0-9a-f-]{36}$/.test(id)).slice(0, 500);
+  await Promise.all(liste.map((id, i) => db().from("locations").update({ reihenfolge: i }).eq("id", id)));
+  revalidatePath("/admin/verkaufsstellen");
 }

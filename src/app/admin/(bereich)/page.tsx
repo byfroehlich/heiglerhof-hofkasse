@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { db } from "@/lib/supabase";
 import { eur, stufe } from "@/lib/format";
 import { requireAdmin } from "@/lib/auth";
-import { MENU } from "@/lib/menu";
+import { menuSortiert } from "@/lib/menu-server";
+import { StartMenu } from "@/components/start-menu";
 import { signOut } from "../actions";
 
 /** Startbildschirm der App: kurzer Überblick und große Knöpfe zu allen Bereichen. */
@@ -39,20 +39,7 @@ export default async function Start() {
         <div className="rounded-xl bg-cream p-3"><b className="block text-2xl tnum">{eur(umsatz)}</b><span className="text-sm text-mut">Umsatz heute</span></div>
       </div>
 
-      <nav className="mt-5 flex flex-col gap-3" aria-label="Hauptmenü">
-        {MENU.map((m) => (
-          <Link key={m.href} href={m.href}
-            className="flex min-h-[72px] items-center gap-4 rounded-2xl border-2 border-line bg-paper px-4 py-3 shadow-sm transition active:scale-[.98] active:bg-orl">
-            <span className="grid h-12 w-12 flex-none place-items-center rounded-xl bg-orl text-2xl" aria-hidden>{m.icon}</span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[22px] font-bold leading-tight">{m.label}</span>
-              <span className="block text-sm text-mut">{m.info}</span>
-              {hinweis[m.href] && <span className="mt-1 flex flex-wrap gap-1">{hinweis[m.href]}</span>}
-            </span>
-            <span className="text-3xl text-mut" aria-hidden>›</span>
-          </Link>
-        ))}
-      </nav>
+      <StartMenu menu={await menuSortiert()} hinweis={hinweis} />
 
       <form action={signOut} className="mt-6 text-center text-sm text-mut">
         Angemeldet als {me.email} · <button className="text-or-d underline">Abmelden</button>

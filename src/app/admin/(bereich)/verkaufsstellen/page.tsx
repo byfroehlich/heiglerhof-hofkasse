@@ -2,6 +2,9 @@ import Link from "next/link";
 import { KassenVorschau } from "@/components/kassen-vorschau";
 import { SendenKnopf } from "@/components/senden-knopf";
 import { LinkTeilen } from "@/components/link-teilen";
+import { ListenSteuerung } from "@/components/listen-steuerung";
+import { StellenReihenfolge } from "@/components/stellen-reihenfolge";
+import { cookies } from "next/headers";
 import { qrSvg } from "@/lib/qr";
 import { siteUrl } from "@/lib/site";
 import { db, partnerUrl } from "@/lib/supabase";
@@ -10,18 +13,56 @@ import { bankdaten } from "@/lib/giro";
 import { nachbestellLink, reactivateLocation } from "../../actions";
 import { NewLocationForm, AssortToggle, StockInput, RemoveLocation, Zahlarten } from "@/components/location-controls";
 
-type L = { id: string; slug: string; name: string; typ: string; ort: string | null; strasse: string | null; plz: string | null; lat: number | null; oeffentlich: boolean; demo: boolean; wiederverkaeufer: boolean; nachbestell_token: string | null; logo_path: string | null; bar_aktiv: boolean; paypal_aktiv: boolean; ueberweisung_aktiv: boolean; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number; warn: number }[] };
+type L = { id: string; reihenfolge?: number | null; slug: string; name: string; typ: string; ort: string | null; strasse: string | null; plz: string | null; lat: number | null; created_at: string; oeffentlich: boolean; demo: boolean; wiederverkaeufer: boolean; nachbestell_token: string | null; logo_path: string | null; bar_aktiv: boolean; paypal_aktiv: boolean; ueberweisung_aktiv: boolean; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number; warn: number }[] };
 
-export default async function Verkaufsstellen() {
+const SORT = [
+  { value: "eigene", label: "Eigene Reihenfolge" }, { value: "name", label: "Name A bis Z" }, { value: "neu", label: "Neueste zuerst" }, { value: "alt", label: "Älteste zuerst" },
+  { value: "art", label: "Nach Art" }, { value: "ort", label: "Nach Ort" }, { value: "warnung", label: "Warnungen zuerst" },
+];
+const FILTER = [
+  { value: "alle", label: "Alle" }, { value: "warnung", label: "Nur mit Warnung" },
+  { value: "Ferienwohnung", label: "Ferienwohnungen" }, { value: "Hotel", label: "Hotels" }, { value: "Verkaufskasten", label: "Verkaufskästen" },
+  { value: "Laden", label: "Läden" }, { value: "wiederverkaeufer", label: "Wiederverkäufer" }, { value: "demo", label: "Demo" },
+];
+
+const SPALTEN = "id, slug, name, typ, ort, strasse, plz, lat, created_at, oeffentlich, demo, wiederverkaeufer, nachbestell_token, logo_path, bar_aktiv, paypal_aktiv, ueberweisung_aktiv, active, archived_at, location_products(product_id, ist, soll, warn)";
+/** Mit eigener Reihenfolge (SQL 0015), sonst ohne diese Spalte. */
+async function stellenLaden() {
+  const r = await db().from("locations").select(`${SPALTEN}, reihenfolge`).order("name").returns<L[]>();
+  return r.error ? db().from("locations").select(SPALTEN).order("name").returns<L[]>() : r;
+}
+
+export default async function Verkaufsstellen({ searchParams }: PageProps<"/admin/verkaufsstellen">) {
+  // Sortierung und Filter: aus dem Link, sonst die zuletzt gewählte (Cookie), sonst Name und alle
+  const sp = await searchParams;
+  const [cs, cf] = decodeURIComponent((await cookies()).get("vs_liste")?.value ?? "").split("|");
+  const pick = (v: unknown, c: string | undefined, opt: { value: string }[], def: string) =>
+    [v, c].find((x): x is string => typeof x === "string" && opt.some((o) => o.value === x)) ?? def;
+  const sort = pick(sp.sort, cs, SORT, "eigene"), filter = pick(sp.filter, cf, FILTER, "alle");
   const base = await siteUrl();
   const ueMoeglich = (await bankdaten()) !== null;
   const [{ data: locs }, { data: prods }, { data: counts }] = await Promise.all([
-    db().from("locations").select("id, slug, name, typ, ort, strasse, plz, lat, oeffentlich, demo, wiederverkaeufer, nachbestell_token, logo_path, bar_aktiv, paypal_aktiv, ueberweisung_aktiv, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
+    stellenLaden(),
     db().from("products").select("id, name, zusatz, inhalt, einheit, active").order("name"),
     db().from("orders").select("location_id"),
   ]);
   const orderCount = (id: string) => (counts ?? []).filter((o) => o.location_id === id).length;
-  const active = (locs ?? []).filter((l) => l.active);
+  const warnungen = (l: L) => l.wiederverkaeufer ? 0 : l.location_products.filter((x) => stufe(x.ist, x.warn) !== "gut").length;
+  const alleAktiven = (locs ?? []).filter((l) => l.active);
+  const active = alleAktiven
+    .filter((l) => filter === "alle" ? true : filter === "warnung" ? warnungen(l) > 0 : filter === "wiederverkaeufer" ? l.wiederverkaeufer : filter === "demo" ? l.demo : l.typ === filter && !l.wiederverkaeufer)
+    .sort((a, b) => {
+      const name = a.name.localeCompare(b.name, "de");
+      switch (sort) {
+        case "neu": return b.created_at.localeCompare(a.created_at);
+        case "alt": return a.created_at.localeCompare(b.created_at);
+        case "art": return a.typ.localeCompare(b.typ, "de") || name;
+        case "ort": return (a.ort ?? "~").localeCompare(b.ort ?? "~", "de") || name;
+        case "warnung": return warnungen(b) - warnungen(a) || name;
+        case "eigene": return (a.reihenfolge ?? 1e6) - (b.reihenfolge ?? 1e6) || name;
+        default: return name;
+      }
+    });
   const archived = (locs ?? []).filter((l) => !l.active);
   // Wiederverkäufer: QR Code zum Nachbestell-Link (für hinter die Theke), sonst Kundenkasse
   const nbUrl = (l: L) => (l.nachbestell_token ? `${base}/nachbestellen/${l.nachbestell_token}` : null);
@@ -32,7 +73,11 @@ export default async function Verkaufsstellen() {
       <h1 className="text-3xl font-bold">Verkaufsstellen</h1>
       <p className="max-w-3xl font-txt text-mut">Jede Verkaufsstelle hat einen eigenen Link für ihren QR Code, ein eigenes Sortiment mit Ist- und Sollbestand und wird getrennt abgerechnet.</p>
       <NewLocationForm />
-      <p className="mt-5 text-sm text-mut">{active.length} Verkaufsstellen · zum Bearbeiten antippen</p>
+      <ListenSteuerung pfad="/admin/verkaufsstellen" sort={sort} filter={filter} sortOptionen={SORT} filterOptionen={FILTER} cookie="vs_liste" />
+      {sort === "eigene" && filter === "alle" && active.length > 1 && (
+        <div className="mt-2"><StellenReihenfolge stellen={active.map((l) => ({ id: l.id, name: l.name, info: [l.wiederverkaeufer ? "Wiederverkäufer" : l.typ, l.ort].filter(Boolean).join(" · ") }))} /></div>
+      )}
+      <p className="mt-3 text-sm text-mut">{active.length === alleAktiven.length ? `${active.length} Verkaufsstellen` : `${active.length} von ${alleAktiven.length} Verkaufsstellen`} · zum Bearbeiten antippen</p>
       <div className="mt-2 flex max-w-3xl flex-col gap-2">
         {active.map((l) => {
           const lp = new Map(l.location_products.map((x) => [x.product_id, x]));

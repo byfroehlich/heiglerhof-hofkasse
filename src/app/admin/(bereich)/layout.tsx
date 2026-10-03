@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { signOut } from "../actions";
 import { AdminNav } from "@/components/admin-nav";
+import { menuSortiert } from "@/lib/menu-server";
 import { LiveStand } from "@/components/live-stand";
 import { db } from "@/lib/supabase";
 import { stufe } from "@/lib/format";
@@ -22,7 +23,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
         <Link href="/admin" aria-label="Zum Startbildschirm" className="flex-none md:mb-3 md:ml-2">
           <Image src="/logo@2x.png" alt="Heiglerhof" width={96} height={95} className="h-11 w-11 md:h-24 md:w-24" />
         </Link>
-        <AdminNav leer={leer} knapp={knapp} nb={nb ?? 0} />
+        <AdminNav leer={leer} knapp={knapp} nb={nb ?? 0} menu={await menuSortiert()} />
         <div className="hidden md:mt-auto md:block md:px-2 md:text-sm md:text-mut">
           {me.email}
           <form action={signOut}><button className="mt-1 text-or-d underline">Abmelden</button></form>

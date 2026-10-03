@@ -2,18 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MENU } from "@/lib/menu";
+import { MENU, type MenuEintrag } from "@/lib/menu";
 
 
 /** Seitenleiste am Computer. Am Handy führt das Logo zum Startbildschirm mit großen Knöpfen. */
-export function AdminNav({ leer, knapp, nb = 0 }: { leer: number; knapp: number; nb?: number }) {
+export function AdminNav({ leer, knapp, nb = 0, menu = [...MENU] }: { leer: number; knapp: number; nb?: number; menu?: MenuEintrag[] }) {
   const path = usePathname();
   const start = path === "/admin";
   const aktuell = MENU.find((i) => path.startsWith(i.href));
   return (
     <>
       <nav className="hidden md:flex md:flex-col md:gap-1">
-        {MENU.map((i) => {
+        {menu.map((i) => {
           const on = path.startsWith(i.href);
           return (
             <Link key={i.href} href={i.href} aria-current={on ? "page" : undefined}
