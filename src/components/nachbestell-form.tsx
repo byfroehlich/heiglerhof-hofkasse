@@ -53,7 +53,7 @@ export function NachbestellForm({ token, stelle, produkte, offen }: { token: str
       <>{Kopf}
         <main className="mx-auto w-full max-w-xl px-4 pb-12 text-center">
           <div className="mx-auto mt-10 grid h-20 w-20 place-items-center rounded-full bg-ok text-4xl text-white">✓</div>
-          <h2 className="mt-4 font-brush text-4xl text-or">Vergelt&apos;s Gott!</h2>
+          <h2 className="mt-4 font-brush text-4xl text-or">Dankschee!</h2>
           <p className="mt-2 text-xl">Eure Nachbestellung {fertig} ist bei uns angekommen.</p>
           <p className="mt-1 font-txt text-mut">Wir bringen die Ware vorbei. Die Rechnung kommt wie gewohnt.</p>
           <button className="btn btn-ghost mt-6 w-full" onClick={() => window.location.reload()}>Noch etwas nachbestellen</button>

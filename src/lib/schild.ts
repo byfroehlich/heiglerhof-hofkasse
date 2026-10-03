@@ -1,7 +1,7 @@
 import "server-only";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { PDFDocument, rgb, type PDFFont, type PDFPage, type Color } from "pdf-lib";
+import { PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage, type Color } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import QRCode from "qrcode";
 import { LOGO_PNG_BASE64 } from "./logo-data";
@@ -47,7 +47,7 @@ export function schildTexte(d: SchildDaten) {
     arten,
     boxTitel,
     alkohol: d.alkohol ? "Liköre geben wir nur an Erwachsene ab 18 Jahren ab." : "",
-    vertrauen: "Unsere kleine Kasse lebt vom Vertrauen. Vergelt’s Gott!",
+    vertrauen: "Unsere kleine Kasse lebt vom Vertrauen. Dankschee und pfiat di!",
   };
 }
 
@@ -69,6 +69,29 @@ function roundRect(p: PDFPage, x: number, top: number, w: number, h: number, r: 
 
 function center(p: PDFPage, text: string, y: number, font: PDFFont, size: number, color: Color, cx = W / 2) {
   p.drawText(text, { x: cx - font.widthOfTextAtSize(text, size) / 2, y, size, font, color });
+}
+
+/** QR Code als Vektor mit Logo in der Mitte (Fehlerkorrektur H verkraftet das Logo). */
+function qrZeichnen(p: PDFPage, logo: PDFImage, url: string, qx: number, qyTop: number, qs: number) {
+  const qr = QRCode.create(url, { errorCorrectionLevel: "H" });
+  const n = qr.modules.size;
+  const mod = qs / n;
+  for (let r = 0; r < n; r++) {
+    let run = -1;
+    for (let c = 0; c <= n; c++) {
+      const on = c < n && qr.modules.get(c, r);
+      if (on && run < 0) run = c;
+      if (!on && run >= 0) {
+        p.drawRectangle({ x: qx + run * mod, y: qyTop - (r + 1) * mod, width: (c - run) * mod + 0.15, height: mod + 0.15, color: C.ink });
+        run = -1;
+      }
+    }
+  }
+  const box = Math.round(n * 0.24) * mod, pad = box * 0.08;
+  const bx = qx + (qs - box) / 2, byTop = qyTop - (qs - box) / 2;
+  roundRect(p, bx, byTop, box, box, box * 0.08, { fill: C.white });
+  const ilw = box - pad * 2, ilh = ilw * (logo.height / logo.width);
+  p.drawImage(logo, { x: bx + pad, y: byTop - box / 2 - ilh / 2, width: ilw, height: ilh });
 }
 
 let fontCache: Record<string, Uint8Array> | null = null;
@@ -102,7 +125,7 @@ export async function schildPdf(d: SchildDaten): Promise<Uint8Array> {
   const lh = 92, lw = (logo.width / logo.height) * lh;
   p.drawImage(logo, { x: M, y: H - M - lh, width: lw, height: lh });
   const tx0 = M + lw + 18;
-  p.drawText("Griaß Gott!", { x: tx0, y: H - M - 46, size: 54, font: brush, color: C.or });
+  p.drawText("Griaß di!", { x: tx0, y: H - M - 46, size: 54, font: brush, color: C.or });
   const nameSize = Math.min(22, ((W - M - tx0) / bold.widthOfTextAtSize(d.name, 22)) * 22);
   p.drawText(d.name, { x: tx0 + 2, y: H - M - 70, size: nameSize, font: bold, color: C.ink });
   p.drawText(tx.kopf, { x: tx0 + 2, y: H - M - 88, size: 15, font: semi, color: C.mut });
@@ -162,26 +185,101 @@ export async function schildPdf(d: SchildDaten): Promise<Uint8Array> {
   const qs = card - 36;
   const cardTop = y - 16 - (frei - card) / 2;
   roundRect(p, (W - card) / 2, cardTop, card, card, 22, { fill: C.white, border: C.or, bw: 4 });
-  const qr = QRCode.create(d.url, { errorCorrectionLevel: "H" });
-  const n = qr.modules.size;
-  const mod = qs / n, qx = (W - qs) / 2, qyTop = cardTop - 18;
-  for (let r = 0; r < n; r++) {
-    let run = -1;
-    for (let c = 0; c <= n; c++) {
-      const on = c < n && qr.modules.get(c, r);
-      if (on && run < 0) run = c;
-      if (!on && run >= 0) {
-        p.drawRectangle({ x: qx + run * mod, y: qyTop - (r + 1) * mod, width: (c - run) * mod + 0.15, height: mod + 0.15, color: C.ink });
-        run = -1;
-      }
-    }
-  }
-  const box = Math.round(n * 0.24) * mod, pad = box * 0.08;
-  const bx = (W - box) / 2, byTop = qyTop - (qs - box) / 2;
-  roundRect(p, bx, byTop, box, box, box * 0.08, { fill: C.white });
-  const ilw = box - pad * 2, ilh = ilw * (logo.height / logo.width);
-  p.drawImage(logo, { x: bx + pad, y: byTop - box / 2 - ilh / 2, width: ilw, height: ilh });
+  qrZeichnen(p, logo, d.url, (W - qs) / 2, cardTop - 18, qs);
   center(p, "Einfach mit dem Handy scannen", cardTop - card - 32, brush, 30, C.or);
+
+  return pdf.save();
+}
+
+export type KartenDaten = { name: string; url: string; kontakt: string };
+
+/** Texte der Nachbestellkarte. Ohne Bindestriche, herzlich und ein bisschen Allgäu. */
+export function karteTexte() {
+  return {
+    titel: "Fast leer? Einfach nachbestellen!",
+    schritte: [
+      { t: "Scannen", x: "Handykamera auf den Code halten. Eine App braucht ihr nicht." },
+      { t: "Auswählen", x: "Mengen antippen und gern eine Notiz dazu, zum Beispiel bis wann." },
+      { t: "Absenden", x: "Auf Nachbestellen tippen. Wir bringen die Ware, die Rechnung kommt wie gewohnt." },
+    ],
+    boxTitel: "Nur für euch und euer Team",
+    box: "Diese Karte bitte unter dem Tresen aufbewahren und nicht für Gäste aushängen. Tipp: Den Link einmal auf dem Handy speichern, dann geht es beim nächsten Mal noch schneller.",
+    dank: "Dankschee für die gute Zusammenarbeit!",
+  };
+}
+
+/** A4-Nachbestellkarte für Wiederverkäufer: großer QR Code zum geheimen Nachbestell-Link. */
+export async function nachbestellKartePdf(d: KartenDaten): Promise<Uint8Array> {
+  const tx = karteTexte();
+  const pdf = await PDFDocument.create();
+  pdf.registerFontkit(fontkit);
+  pdf.setTitle(`Nachbestellkarte ${d.name}`);
+  pdf.setAuthor("Heiglerhof");
+  const f = await fonts();
+  const bold = await pdf.embedFont(f.bold, { subset: true });
+  const semi = await pdf.embedFont(f.semi, { subset: true });
+  const med = await pdf.embedFont(f.med, { subset: true });
+  const brush = await pdf.embedFont(f.brush);
+  const serif = await pdf.embedFont(f.serif, { subset: true });
+  const serifI = await pdf.embedFont(f.serifI, { subset: true });
+  const logo = await pdf.embedPng(Buffer.from(LOGO_PNG_BASE64, "base64"));
+  const p = pdf.addPage([W, H]);
+
+  // Kopf
+  const lh = 92, lw = (logo.width / logo.height) * lh;
+  p.drawImage(logo, { x: M, y: H - M - lh, width: lw, height: lh });
+  const tx0 = M + lw + 18;
+  p.drawText("Griaß di!", { x: tx0, y: H - M - 46, size: 54, font: brush, color: C.or });
+  const nameSize = Math.min(22, ((W - M - tx0) / bold.widthOfTextAtSize(d.name, 22)) * 22);
+  p.drawText(d.name, { x: tx0 + 2, y: H - M - 70, size: nameSize, font: bold, color: C.ink });
+  p.drawText("Nachbestellen beim Heiglerhof", { x: tx0 + 2, y: H - M - 88, size: 15, font: semi, color: C.mut });
+
+  // Fuß
+  const fy = M + 20;
+  p.drawLine({ start: { x: M, y: fy + 20 }, end: { x: W - M, y: fy + 20 }, thickness: 1.5, color: C.or });
+  const fuss = ["Heiglerhof · Wank 6 · 87484 Nesselwang", d.kontakt, "www.heiglerhof.de"].filter(Boolean).join(" · ");
+  center(p, fuss, fy + 2, semi, Math.min(13, ((W - 2 * M) / semi.widthOfTextAtSize(fuss, 13)) * 13), C.ink);
+  const ohne = `Kein Scan möglich? Im Browser eingeben: ${d.url.replace(/^https?:\/\//, "")}`;
+  center(p, ohne, fy - 15, med, Math.min(11, ((W - 2 * M) / med.widthOfTextAtSize(ohne, 11)) * 11), C.mut);
+
+  // Von unten: Dank, Hinweisbox, Schritte
+  let u = fy + 20 + 28;
+  center(p, tx.dank, u, serifI, 17, C.ink);
+  u += 24;
+  const bw = W - 2 * M;
+  const boxLines = wrap(tx.box, serif, 13, bw - 48);
+  const boxH = 18 + 24 + 10 + boxLines.length * 17 + 14;
+  const boxTop = u + boxH;
+  roundRect(p, M, boxTop, bw, boxH, 18, { fill: C.cream, border: C.or, bw: 1.5 });
+  center(p, tx.boxTitel, boxTop - 18 - 20, bold, 24, C.ink);
+  let ly = boxTop - 18 - 24 - 10 - 12;
+  for (const l of boxLines) { center(p, l, ly, serif, 13, C.ink); ly -= 17; }
+
+  const colW = (W - 2 * M - 2 * 16) / 3;
+  const stepLines = tx.schritte.map((st) => wrap(st.x, serif, 12, colW - 4));
+  const stepsH = 34 + 10 + Math.max(...stepLines.map((l) => l.length)) * 15;
+  const stepsTop = boxTop + 18 + stepsH;
+  tx.schritte.forEach((st, i) => {
+    const x = M + i * (colW + 16), cx = x + 17;
+    p.drawCircle({ x: cx, y: stepsTop - 17, size: 17, color: C.ink });
+    center(p, String(i + 1), stepsTop - 24, bold, 20, C.white, cx);
+    p.drawText(st.t, { x: x + 42, y: stepsTop - 24, size: 22, font: bold, color: C.ink });
+    let sy = stepsTop - 34 - 12 - 4;
+    for (const line of stepLines[i]) { p.drawText(line, { x: x + 2, y: sy, size: 12, font: serif, color: C.ink }); sy -= 15; }
+  });
+
+  // Von oben: Titel, dann QR Code so groß wie möglich
+  const y = H - M - lh - 46;
+  const titelSize = bold.widthOfTextAtSize(tx.titel, 38) > W - 2 * M ? 32 : 38;
+  center(p, tx.titel, y, bold, titelSize, C.ink);
+  const capH = 40;
+  const frei = y - 16 - (stepsTop + 12) - capH;
+  const card = Math.min(300, frei);
+  const qs = card - 36;
+  const cardTop = y - 16 - (frei - card) / 2;
+  roundRect(p, (W - card) / 2, cardTop, card, card, 22, { fill: C.white, border: C.or, bw: 4 });
+  qrZeichnen(p, logo, d.url, (W - qs) / 2, cardTop - 18, qs);
+  center(p, "Mit dem Handy scannen", cardTop - card - 32, brush, 30, C.or);
 
   return pdf.save();
 }
