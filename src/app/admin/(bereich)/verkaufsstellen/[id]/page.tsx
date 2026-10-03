@@ -8,14 +8,14 @@ import { LocationEditor } from "@/components/location-editor";
 
 type L = {
   id: string; slug: string; name: string; typ: string; ort: string | null; strasse: string | null; plz: string | null; hinweis: string | null;
-  oeffentlich: boolean; lat: number | null; lng: number | null; logo_path: string | null; werbung_bild: string | null; werbung_text: string | null; werbung_link: string | null;
+  oeffentlich: boolean; demo: boolean; lat: number | null; lng: number | null; logo_path: string | null; werbung_bild: string | null; werbung_text: string | null; werbung_link: string | null;
 };
 
 export default async function VerkaufsstelleBearbeiten({ params }: PageProps<"/admin/verkaufsstellen/[id]">) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
   const { data: l } = await db().from("locations")
-    .select("id, slug, name, typ, ort, strasse, plz, hinweis, oeffentlich, lat, lng, logo_path, werbung_bild, werbung_text, werbung_link")
+    .select("id, slug, name, typ, ort, strasse, plz, hinweis, oeffentlich, demo, lat, lng, logo_path, werbung_bild, werbung_text, werbung_link")
     .eq("id", id).maybeSingle<L>();
   if (!l) notFound();
   const url = `${await siteUrl()}/kasse/${l.slug}`;
@@ -26,13 +26,13 @@ export default async function VerkaufsstelleBearbeiten({ params }: PageProps<"/a
       <p className="font-txt text-mut">Adresse, Kartenpunkt, Partnerlogo und Werbung. Ganz unten der QR Code zum Herunterladen.</p>
       <LocationEditor l={{
         id: l.id, name: l.name, typ: l.typ, strasse: l.strasse ?? "", plz: l.plz ?? "", ort: l.ort ?? "", hinweis: l.hinweis ?? "",
-        oeffentlich: l.oeffentlich, lat: l.lat, lng: l.lng, logo: partnerUrl(l.logo_path), werbung_bild: partnerUrl(l.werbung_bild),
+        oeffentlich: l.oeffentlich, demo: l.demo, lat: l.lat, lng: l.lng, logo: partnerUrl(l.logo_path), werbung_bild: partnerUrl(l.werbung_bild),
         werbung_text: l.werbung_text ?? "", werbung_link: l.werbung_link ?? "",
       }} />
 
       <h2 id="schild" className="mt-10 text-2xl font-bold">Verkaufsschild A4</h2>
       <p className="max-w-3xl font-txt text-mut">
-        Fertiges Schild mit QR Code, Anleitung in drei Schritten und den Zahlarten dieser Stelle. Ist PayPal an, wird es als schnellster Weg hervorgehoben.
+        Fertiges Schild mit QR Code, Anleitung in drei Schritten und den aktiven Zahlarten dieser Stelle, alle gleichwertig.
         Werden die Zahlarten geändert, bitte das Schild neu herunterladen und austauschen.
       </p>
       <div className="mt-3 flex flex-wrap gap-3">

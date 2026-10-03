@@ -8,11 +8,11 @@ import { markTransferPaid } from "../../actions";
 const STATUS: Record<string, { t: string; c: string }> = {
   paid: { t: "bezahlt", c: "bg-ok" }, cash: { t: "bar", c: "bg-[#5b6f83]" }, created: { t: "offen", c: "bg-[#9a948a]" },
   review: { t: "prüfen", c: "bg-warn" }, transfer: { t: "Überweisung offen", c: "bg-warn" }, transfer_paid: { t: "überwiesen", c: "bg-ok" }, refunded: { t: "erstattet", c: "bg-[#7a5c9a]" }, cancelled: { t: "abgebrochen", c: "bg-[#bbb]" },
-  storniert: { t: "storniert", c: "bg-[#9a948a]" }, vorfuehrung: { t: "Vorführung", c: "bg-[#2f5d7c]" },
+  storniert: { t: "storniert", c: "bg-[#9a948a]" },
 };
 
 type W = { ist: number; soll: number; warn: number; locations: { name: string }; products: ProduktKurz };
-type O = { id: string; nr: number; status: string; total_cents: number; gebuehr_cents: number; storno_grund: string | null; created_at: string; locations: { name: string }; order_items: { name_snapshot: string; quantity: number }[] };
+type O = { id: string; nr: number; status: string; total_cents: number; gebuehr_cents: number; storno_grund: string | null; created_at: string; locations: { name: string; demo: boolean }; order_items: { name_snapshot: string; quantity: number }[] };
 
 export default async function Bestellungen({ searchParams }: PageProps<"/admin/bestellungen">) {
   const sp = await searchParams;
@@ -23,18 +23,18 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin/b
   // Jahr (4 Ziffern mit Bindestrich danach) überspringen, die laufende Nummer zählt
   const nr = /(?:\b\d{4}\s*[-/]\s*)?(\d{1,9})/.exec(suche)?.[1];
   const { data: locations } = await db().from("locations").select("id, name").order("name");
-  let q = db().from("orders").select("id, nr, status, total_cents, gebuehr_cents, storno_grund, created_at, locations!inner(name), order_items(name_snapshot, quantity)").order("created_at", { ascending: false }).limit(200);
+  let q = db().from("orders").select("id, nr, status, total_cents, gebuehr_cents, storno_grund, created_at, locations!inner(name, demo), order_items(name_snapshot, quantity)").order("created_at", { ascending: false }).limit(200);
   if (loc) q = q.eq("location_id", loc);
   if (st) q = q.eq("status", st);
   if (nr) q = q.eq("nr", Number(nr));
   const { data } = await q.returns<O[]>();
   const orders = data ?? [];
   const month = new Date(); month.setDate(1); month.setHours(0, 0, 0, 0);
-  const { data: m } = await db().from("orders").select("status, total_cents").in("status", ["paid", "cash", "transfer_paid"]).gte("created_at", month.toISOString());
-  const { data: bestand } = await db().from("location_products").select("ist, soll, warn, locations!inner(name, active), products!inner(name, zusatz, inhalt, einheit)").eq("locations.active", true).returns<W[]>();
+  const { data: m } = await db().from("orders").select("status, total_cents, locations!inner(demo)").eq("locations.demo", false).in("status", ["paid", "cash", "transfer_paid"]).gte("created_at", month.toISOString());
+  const { data: bestand } = await db().from("location_products").select("ist, soll, warn, locations!inner(name, active, demo), products!inner(name, zusatz, inhalt, einheit)").eq("locations.demo", false).eq("locations.active", true).returns<W[]>();
   const leer = (bestand ?? []).filter((r) => stufe(r.ist, r.warn) === "leer");
   const knapp = (bestand ?? []).filter((r) => stufe(r.ist, r.warn) === "knapp");
-  const { count: offen } = await db().from("orders").select("id", { count: "exact", head: true }).eq("status", "transfer");
+  const { count: offen } = await db().from("orders").select("id, locations!inner(demo)", { count: "exact", head: true }).eq("locations.demo", false).eq("status", "transfer");
   const sum = (s: string) => (m ?? []).filter((o) => o.status === s).reduce((a, o) => a + o.total_cents, 0);
 
   return (
@@ -74,10 +74,10 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin/b
           <thead><tr className="border-b-2 border-ink text-left text-sm text-mut"><th className="p-2">Nr.</th><th className="p-2">Zeit</th><th className="p-2">Verkaufsstelle</th><th className="p-2">Positionen</th><th className="p-2 text-right">Betrag</th><th className="p-2">Status</th></tr></thead>
           <tbody>
             {orders.map((o) => (
-              <tr key={o.id} className={`border-b border-[#f1e8d6] ${o.status === "storniert" || o.status === "vorfuehrung" ? "text-mut" : ""}`}>
+              <tr key={o.id} className={`border-b border-[#f1e8d6] ${o.status === "storniert" ? "text-mut" : ""}`}>
                 <td className="whitespace-nowrap p-2">{bestellNr(o.nr, o.created_at)}</td>
                 <td className="whitespace-nowrap p-2">{new Date(o.created_at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })}</td>
-                <td className="p-2">{o.locations.name}</td>
+                <td className="p-2">{o.locations.name}{o.locations.demo && <span className="pill ml-1 bg-[#2f5d7c]">Demo</span>}</td>
                 <td className="p-2">{o.order_items.map((i) => (i.quantity > 1 ? `${i.quantity} × ` : "") + i.name_snapshot).join(", ")}</td>
                 <td className="p-2 text-right">{eur(o.total_cents)}{o.gebuehr_cents > 0 && <div className="whitespace-nowrap text-xs text-mut">+ {eur(o.gebuehr_cents)} PayPal Gebühr</div>}</td>
                 <td className="p-2">

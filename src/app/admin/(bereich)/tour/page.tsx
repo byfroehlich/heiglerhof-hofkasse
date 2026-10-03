@@ -22,8 +22,8 @@ export default async function Tour({ searchParams }: PageProps<"/admin/tour">) {
   const nurLeer = sp.nur === "leer";
   const { data } = await db()
     .from("location_products")
-    .select("ist, soll, warn, location_id, product_id, locations!inner(name, typ, strasse, plz, ort, lat, lng, active), products!inner(name, zusatz, inhalt, einheit, active)")
-    .eq("locations.active", true)
+    .select("ist, soll, warn, location_id, product_id, locations!inner(name, typ, strasse, plz, ort, lat, lng, active, demo), products!inner(name, zusatz, inhalt, einheit, active)")
+    .eq("locations.active", true).eq("locations.demo", false)
     .returns<R[]>();
   const rows = data ?? [];
 

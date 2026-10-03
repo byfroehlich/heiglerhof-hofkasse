@@ -15,9 +15,9 @@ export default async function Start() {
   berlin.setHours(0, 0, 0, 0);
   const heute = new Date(berlin.getTime() - versatz);
   const [{ data: bestand }, { data: kaeufe }, { count: offen }] = await Promise.all([
-    db().from("location_products").select("ist, warn, locations!inner(active), products!inner(active)").eq("locations.active", true).eq("products.active", true),
-    db().from("orders").select("total_cents").in("status", ["paid", "cash", "transfer", "transfer_paid"]).gte("created_at", heute.toISOString()),
-    db().from("orders").select("id", { count: "exact", head: true }).eq("status", "transfer"),
+    db().from("location_products").select("ist, warn, locations!inner(active, demo), products!inner(active)").eq("locations.active", true).eq("locations.demo", false).eq("products.active", true),
+    db().from("orders").select("total_cents, locations!inner(demo)").eq("locations.demo", false).in("status", ["paid", "cash", "transfer", "transfer_paid"]).gte("created_at", heute.toISOString()),
+    db().from("orders").select("id, locations!inner(demo)", { count: "exact", head: true }).eq("locations.demo", false).eq("status", "transfer"),
   ]);
   const leer = (bestand ?? []).filter((r) => stufe(r.ist, r.warn) === "leer").length;
   const knapp = (bestand ?? []).filter((r) => stufe(r.ist, r.warn) === "knapp").length;
