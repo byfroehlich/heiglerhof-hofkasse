@@ -15,6 +15,7 @@ export type SchildDaten = {
   paypalGebuehr: boolean;
   ueberweisung: boolean;
   alkohol: boolean;
+  kontakt: string; // "Name Telefon" oder leer
 };
 
 const hex = (h: string): Color => rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
@@ -109,7 +110,8 @@ export async function schildPdf(d: SchildDaten): Promise<Uint8Array> {
   // Fuß (fest unten)
   const fy = M + 20;
   p.drawLine({ start: { x: M, y: fy + 20 }, end: { x: W - M, y: fy + 20 }, thickness: 1.5, color: C.or });
-  center(p, "Heiglerhof · Wank 6 · 87484 Nesselwang · Steffi 0176 9999 8727 · www.heiglerhof.de", fy + 2, semi, 13, C.ink);
+  const fuss = ["Heiglerhof · Wank 6 · 87484 Nesselwang", d.kontakt, "www.heiglerhof.de"].filter(Boolean).join(" · ");
+  center(p, fuss, fy + 2, semi, Math.min(13, ((W - 2 * M) / semi.widthOfTextAtSize(fuss, 13)) * 13), C.ink); // lange Namen verkleinern statt abschneiden
   center(p, `Kein Scan möglich? Im Browser eingeben: ${d.url.replace(/^https?:\/\//, "")}`, fy - 15, med, 11, C.mut);
 
   // Von unten nach oben: Dank, Altershinweis, Zahlbox, Schritte

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { saveBank, savePaypalGebuehr } from "../../actions";
+import { saveBank, saveKontakt, savePaypalGebuehr } from "../../actions";
 import { paypalAufschlag } from "@/lib/pricing";
 import { eur } from "@/lib/format";
 
@@ -41,6 +41,21 @@ export function GebuehrForm({ aktiv, bp, fix }: { aktiv: boolean; bp: number; fi
         Beispiele mit den gespeicherten Werten: {[500, 1000, 2000].map((c) => `${eur(c)} + ${eur(paypalAufschlag(c, g))}`).join(" · ")}.
         So bleibt nach Abzug der PayPal Gebühr genau euer Preis übrig.
       </p>
+      {state?.error && <p role="alert" className="rounded-lg bg-[#fbe9e7] p-3 text-bad">{state.error}</p>}
+      {state?.ok && <p role="status" className="rounded-lg bg-[#e6f0df] p-3 text-ok">{state.ok}</p>}
+      <div><button className="btn btn-or" disabled={pending}>{pending ? "Speichern …" : "Speichern"}</button></div>
+    </form>
+  );
+}
+
+export function KontaktForm({ name, telefon }: { name: string; telefon: string }) {
+  const [state, action, pending] = useActionState(saveKontakt, undefined);
+  return (
+    <form action={action} className="mt-4 flex flex-col gap-3">
+      <div className="grid gap-3 md:grid-cols-2">
+        <label className="field">Name (zum Beispiel nur der Vorname)<input name="name" defaultValue={name} maxLength={40} autoComplete="off" /></label>
+        <label className="field">Handynummer<input name="telefon" defaultValue={telefon} maxLength={25} inputMode="tel" autoComplete="off" placeholder="0176 1234 5678" /></label>
+      </div>
       {state?.error && <p role="alert" className="rounded-lg bg-[#fbe9e7] p-3 text-bad">{state.error}</p>}
       {state?.ok && <p role="status" className="rounded-lg bg-[#e6f0df] p-3 text-ok">{state.ok}</p>}
       <div><button className="btn btn-or" disabled={pending}>{pending ? "Speichern …" : "Speichern"}</button></div>

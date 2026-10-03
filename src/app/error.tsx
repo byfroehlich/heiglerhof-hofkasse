@@ -6,7 +6,7 @@ export default function Fehler({ reset }: { error: Error; reset: () => void }) {
       <h1 className="font-brush text-4xl text-or">Hoppla</h1>
       <p className="font-txt text-lg">Gerade klemmt etwas. Bitte gleich noch einmal versuchen. Bargeld könnt ihr jederzeit in die Kasse legen.</p>
       <button className="btn btn-or" onClick={reset}>Noch einmal versuchen</button>
-      <p className="text-mut">Heiglerhof · 0176 9999 8727</p>
+      <p className="text-mut">Heiglerhof · Wank 6 · 87484 Nesselwang</p>
     </main>
   );
 }

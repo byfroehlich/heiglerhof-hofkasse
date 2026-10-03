@@ -5,6 +5,7 @@ import { db, partnerUrl } from "@/lib/supabase";
 import { Karte, type KartenPunkt } from "@/components/karte";
 import { HOF } from "@/lib/hof";
 import { km } from "@/lib/route";
+import { kontakt, kontaktText } from "@/lib/kontakt";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -21,6 +22,7 @@ type L = {
 const routeLink = (l: { lat: number; lng: number }) => `https://www.google.com/maps/dir/?api=1&destination=${l.lat.toFixed(6)},${l.lng.toFixed(6)}`;
 
 export default async function KartePage() {
+  const wer = kontaktText(await kontakt());
   // Nur öffentliche, aktive Stellen mit Kartenpunkt. Bestände werden nicht gezeigt, nur was gerade da ist.
   const { data, error } = await db()
     .from("locations")
@@ -77,7 +79,7 @@ export default async function KartePage() {
           </li>
         ))}
       </ul>
-      <p className="mt-8 text-center text-mut">Heiglerhof · Wank 6 · 87484 Nesselwang · Steffi 0176 9999 8727</p>
+      <p className="mt-8 text-center text-mut">Heiglerhof · Wank 6 · 87484 Nesselwang{wer ? ` · ${wer}` : ""}</p>
     </main>
   );
 }
