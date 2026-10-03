@@ -3,6 +3,7 @@ export const MENU = [
   { href: "/admin/bestellungen", label: "Bestellungen", icon: "🧾", info: "Alle Käufe, Überweisungen bestätigen" },
   { href: "/admin/nachfuellen", label: "Nachfüllen", icon: "📦", info: "Was wo fehlt, abhaken" },
   { href: "/admin/tour", label: "Nachfülltour", icon: "🚗", info: "Beste Route mit Packliste" },
+  { href: "/admin/nachbestellungen", label: "Nachbestellungen", icon: "📝", info: "Von Wiederverkäufern, Lieferschein" },
   { href: "/admin/abrechnung", label: "Abrechnung", icon: "💶", info: "Umsatz je Verkaufsstelle und Monat" },
   { href: "/admin/produkte", label: "Produkte und Preise", icon: "🍯", info: "Anlegen, Fotos, Preise" },
   { href: "/admin/verkaufsstellen", label: "Verkaufsstellen", icon: "📍", info: "Sortiment, Bestand, Zahlarten, Schild" },

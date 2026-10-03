@@ -4,7 +4,7 @@ import { db } from "./supabase";
 import { env } from "./env";
 import { bestellNr, eur } from "./format";
 
-export type PushArt = "kauf" | "knapp" | "leer";
+export type PushArt = "kauf" | "knapp" | "leer" | "nachbestellung";
 type Nachricht = { title: string; body: string; url?: string; tag?: string };
 
 /** VAPID-Schlüssel aus den Einstellungen; fehlen sie, werden sie einmalig erzeugt und gespeichert. */

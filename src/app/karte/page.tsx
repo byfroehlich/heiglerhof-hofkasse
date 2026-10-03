@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 type L = {
   id: string; name: string; typ: string; strasse: string | null; plz: string | null; ort: string | null; hinweis: string | null;
-  lat: number; lng: number; logo_path: string | null;
+  lat: number; lng: number; logo_path: string | null; wiederverkaeufer: boolean;
   location_products: { ist: number; products: { name: string; zusatz: string | null; active: boolean } }[];
 };
 
@@ -26,7 +26,7 @@ export default async function KartePage() {
   // Nur öffentliche, aktive Stellen mit Kartenpunkt. Bestände werden nicht gezeigt, nur was gerade da ist.
   const { data, error } = await db()
     .from("locations")
-    .select("id, name, typ, strasse, plz, ort, hinweis, lat, lng, logo_path, location_products(ist, products(name, zusatz, active))")
+    .select("id, name, typ, strasse, plz, ort, hinweis, lat, lng, logo_path, wiederverkaeufer, location_products(ist, products(name, zusatz, active))")
     .eq("active", true).eq("oeffentlich", true).eq("demo", false).not("lat", "is", null).not("lng", "is", null)
     .order("name")
     .returns<L[]>();
@@ -34,7 +34,7 @@ export default async function KartePage() {
   const stellen = (data ?? []).map((l) => ({
     ...l,
     adresse: [l.strasse, [l.plz, l.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "),
-    da: l.location_products.filter((x) => x.ist > 0 && x.products?.active).map((x) => (x.products.zusatz ? `${x.products.name} (${x.products.zusatz})` : x.products.name)).sort((a, b) => a.localeCompare(b, "de")),
+    da: l.location_products.filter((x) => (l.wiederverkaeufer || x.ist > 0) && x.products?.active) // Wiederverkäufer führen ihren Bestand selbst.map((x) => (x.products.zusatz ? `${x.products.name} (${x.products.zusatz})` : x.products.name)).sort((a, b) => a.localeCompare(b, "de")),
   }));
   const punkte: KartenPunkt[] = stellen.map((l) => ({
     id: l.id, lat: l.lat, lng: l.lng, titel: l.name, zeile: l.adresse, farbe: "or",

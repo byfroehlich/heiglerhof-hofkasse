@@ -15,15 +15,16 @@ type R = {
   products: ProduktKurz & { active: boolean };
 };
 type Pos = { product_id: string; name: string; ist: number; soll: number; menge: number; stufe: Stufe };
-type Stopp = { id: string; name: string; typ: string; adresse: string; lat: number | null; lng: number | null; pos: Pos[]; schlimmste: Stufe };
+type Stopp = { id: string; name: string; typ: string; adresse: string; lat: number | null; lng: number | null; pos: Pos[]; schlimmste: Stufe; nb?: string[] };
+type NbRow = { nr: number; locations: { id: string; name: string; typ: string; strasse: string | null; plz: string | null; ort: string | null; lat: number | null; lng: number | null }; positionen: { product_id: string; name_snapshot: string; menge: number }[] };
 
 export default async function Tour({ searchParams }: PageProps<"/admin/tour">) {
   const sp = await searchParams;
   const nurLeer = sp.nur === "leer";
   const { data } = await db()
     .from("location_products")
-    .select("ist, soll, warn, location_id, product_id, locations!inner(name, typ, strasse, plz, ort, lat, lng, active, demo), products!inner(name, zusatz, inhalt, einheit, active)")
-    .eq("locations.active", true).eq("locations.demo", false)
+    .select("ist, soll, warn, location_id, product_id, locations!inner(name, typ, strasse, plz, ort, lat, lng, active, demo, wiederverkaeufer), products!inner(name, zusatz, inhalt, einheit, active)")
+    .eq("locations.active", true).eq("locations.demo", false).eq("locations.wiederverkaeufer", false)
     .returns<R[]>();
   const rows = data ?? [];
 
@@ -42,6 +43,24 @@ export default async function Tour({ searchParams }: PageProps<"/admin/tour">) {
       id, name: l.name, typ: l.typ, adresse: [l.strasse, [l.plz, l.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "),
       lat: l.lat, lng: l.lng, pos, schlimmste: pos.some((p) => p.stufe === "leer") ? "leer" : "knapp",
     });
+  }
+  // Offene Nachbestellungen der Wiederverkäufer sind eigene Stopps (Menge laut Bestellung, kein Bestand)
+  const { data: nbs } = await db().from("nachbestellungen")
+    .select("nr, locations!inner(id, name, typ, strasse, plz, ort, lat, lng), positionen:nachbestell_positionen(product_id, name_snapshot, menge)")
+    .eq("status", "offen").order("created_at").returns<NbRow[]>();
+  for (const n of nbs ?? []) {
+    const l = n.locations;
+    let s = stopps.find((x) => x.id === l.id);
+    if (!s) {
+      s = { id: l.id, name: l.name, typ: l.typ, adresse: [l.strasse, [l.plz, l.ort].filter(Boolean).join(" ")].filter(Boolean).join(", "), lat: l.lat, lng: l.lng, pos: [], schlimmste: "knapp", nb: [] };
+      stopps.push(s);
+    }
+    s.nb = [...(s.nb ?? []), `N-${n.nr}`];
+    for (const p of n.positionen) {
+      const e = s.pos.find((x) => x.product_id === p.product_id);
+      if (e) e.menge += p.menge;
+      else s.pos.push({ product_id: p.product_id, name: p.name_snapshot, ist: 0, soll: 0, menge: p.menge, stufe: "gut" });
+    }
   }
   const mitPunkt = stopps.filter((s): s is Stopp & { lat: number; lng: number } => s.lat != null && s.lng != null);
   const ohnePunkt = stopps.filter((s) => s.lat == null || s.lng == null);
@@ -72,7 +91,7 @@ export default async function Tour({ searchParams }: PageProps<"/admin/tour">) {
     <>
       <h1 className="text-3xl font-bold">Nachfülltour</h1>
       <p className="max-w-3xl font-txt text-mut">
-        Alle Verkaufsstellen mit Warnung in der kürzesten Reihenfolge ab Hof und zurück. An jeder Stelle wird alles bis zum Sollbestand aufgefüllt,
+        Alle Verkaufsstellen mit Warnung und alle offenen Nachbestellungen in der kürzesten Reihenfolge ab Hof und zurück. An jeder Stelle wird alles bis zum Sollbestand aufgefüllt,
         deshalb steht auf der Packliste auch, was noch nicht knapp ist. Reihenfolge, Kilometer und Fahrzeit kommen aus OpenStreetMap; unterwegs navigiert Google Maps.
       </p>
       <div className="no-print mt-3 flex flex-wrap gap-2">
@@ -154,16 +173,19 @@ function StoppKarte({ s, nr, weg }: { s: Stopp; nr?: number; weg?: { km: number;
           <div className="text-sm text-mut">{s.adresse || "Adresse fehlt"}{weg && <> · <Weg w={weg} /></>}</div>
         </div>
       </div>
+      {s.nb && <div className="mt-1"><span className="pill bg-[#7a5c9a]">Nachbestellung {s.nb.join(", ")}</span></div>}
       <ul className="mt-2">
         {s.pos.map((p) => (
           <li key={p.product_id} className="flex items-center gap-2 py-0.5">
             <span className="w-10 text-right text-lg font-bold tnum">{p.menge}×</span>
-            <span className="min-w-0 flex-1">{p.name} <span className="text-sm text-mut tnum">({p.ist} / {p.soll})</span></span>
+            <span className="min-w-0 flex-1">{p.name} {!s.nb && <span className="text-sm text-mut tnum">({p.ist} / {p.soll})</span>}</span>
             {p.stufe !== "gut" && <span className={`pill ${STUFE[p.stufe].pill}`}>{STUFE[p.stufe].t}</span>}
           </li>
         ))}
       </ul>
-      <form action={refill.bind(null, s.id, undefined)} className="no-print"><SendenKnopf className="btn btn-ghost btn-sm mt-2" arbeit="Wird gespeichert …">Hier alles aufgefüllt</SendenKnopf></form>
+      {s.nb
+        ? <Link href="/admin/nachbestellungen" className="no-print btn btn-ghost btn-sm mt-2">Lieferschein und „Geliefert“</Link>
+        : <form action={refill.bind(null, s.id, undefined)} className="no-print"><SendenKnopf className="btn btn-ghost btn-sm mt-2" arbeit="Wird gespeichert …">Hier alles aufgefüllt</SendenKnopf></form>}
     </li>
   );
 }

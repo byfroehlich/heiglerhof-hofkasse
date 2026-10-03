@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const me = await requireAdmin();
-  const { data } = await db().from("location_products").select("ist, warn, locations!inner(active, demo)").eq("locations.active", true).eq("locations.demo", false);
+  const { data } = await db().from("location_products").select("ist, warn, locations!inner(active, demo, wiederverkaeufer)").eq("locations.active", true).eq("locations.demo", false).eq("locations.wiederverkaeufer", false);
   const rows = data ?? [];
   const leer = rows.filter((r) => stufe(r.ist, r.warn) === "leer").length;
   const knapp = rows.filter((r) => stufe(r.ist, r.warn) === "knapp").length;

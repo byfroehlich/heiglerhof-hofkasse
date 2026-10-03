@@ -7,23 +7,25 @@ import { siteUrl } from "@/lib/site";
 import { db, partnerUrl } from "@/lib/supabase";
 import { STUFE, produktLabel, stufe, type Einheit } from "@/lib/format";
 import { bankdaten } from "@/lib/giro";
-import { reactivateLocation } from "../../actions";
+import { nachbestellLink, reactivateLocation } from "../../actions";
 import { NewLocationForm, AssortToggle, StockInput, RemoveLocation, Zahlarten } from "@/components/location-controls";
 
-type L = { id: string; slug: string; name: string; typ: string; ort: string | null; strasse: string | null; plz: string | null; lat: number | null; oeffentlich: boolean; demo: boolean; logo_path: string | null; bar_aktiv: boolean; paypal_aktiv: boolean; ueberweisung_aktiv: boolean; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number; warn: number }[] };
+type L = { id: string; slug: string; name: string; typ: string; ort: string | null; strasse: string | null; plz: string | null; lat: number | null; oeffentlich: boolean; demo: boolean; wiederverkaeufer: boolean; nachbestell_token: string | null; logo_path: string | null; bar_aktiv: boolean; paypal_aktiv: boolean; ueberweisung_aktiv: boolean; active: boolean; archived_at: string | null; location_products: { product_id: string; ist: number; soll: number; warn: number }[] };
 
 export default async function Verkaufsstellen() {
   const base = await siteUrl();
   const ueMoeglich = (await bankdaten()) !== null;
   const [{ data: locs }, { data: prods }, { data: counts }] = await Promise.all([
-    db().from("locations").select("id, slug, name, typ, ort, strasse, plz, lat, oeffentlich, demo, logo_path, bar_aktiv, paypal_aktiv, ueberweisung_aktiv, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
+    db().from("locations").select("id, slug, name, typ, ort, strasse, plz, lat, oeffentlich, demo, wiederverkaeufer, nachbestell_token, logo_path, bar_aktiv, paypal_aktiv, ueberweisung_aktiv, active, archived_at, location_products(product_id, ist, soll, warn)").order("name").returns<L[]>(),
     db().from("products").select("id, name, zusatz, inhalt, einheit, active").order("name"),
     db().from("orders").select("location_id"),
   ]);
   const orderCount = (id: string) => (counts ?? []).filter((o) => o.location_id === id).length;
   const active = (locs ?? []).filter((l) => l.active);
   const archived = (locs ?? []).filter((l) => !l.active);
-  const qr = Object.fromEntries(active.map((l) => [l.id, qrSvg(`${base}/kasse/${l.slug}`)]));
+  // Wiederverkäufer: QR Code zum Nachbestell-Link (für hinter die Theke), sonst Kundenkasse
+  const nbUrl = (l: L) => (l.nachbestell_token ? `${base}/nachbestellen/${l.nachbestell_token}` : null);
+  const qr = Object.fromEntries(active.map((l) => [l.id, l.wiederverkaeufer ? (nbUrl(l) ? qrSvg(nbUrl(l)!) : "") : qrSvg(`${base}/kasse/${l.slug}`)]));
 
   return (
     <>
@@ -34,9 +36,10 @@ export default async function Verkaufsstellen() {
       <div className="mt-2 flex max-w-3xl flex-col gap-2">
         {active.map((l) => {
           const lp = new Map(l.location_products.map((x) => [x.product_id, x]));
-          const nLeer = l.location_products.filter((x) => stufe(x.ist, x.warn) === "leer").length;
-          const nKnapp = l.location_products.filter((x) => stufe(x.ist, x.warn) === "knapp").length;
-          const arten = [l.paypal_aktiv && "PayPal", l.ueberweisung_aktiv && "Überweisung", l.bar_aktiv && "Bar"].filter(Boolean).join(" · ");
+          const wv = l.wiederverkaeufer;
+          const nLeer = wv ? 0 : l.location_products.filter((x) => stufe(x.ist, x.warn) === "leer").length;
+          const nKnapp = wv ? 0 : l.location_products.filter((x) => stufe(x.ist, x.warn) === "knapp").length;
+          const arten = wv ? "Wiederverkäufer · bestellt per Link nach" : [l.paypal_aktiv && "PayPal", l.ueberweisung_aktiv && "Überweisung", l.bar_aktiv && "Bar"].filter(Boolean).join(" · ");
           return (
             <details key={l.id} className="group/stelle min-w-0 rounded-xl border border-line bg-cream open:shadow-sm">
               <summary className="flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
@@ -55,6 +58,7 @@ export default async function Verkaufsstellen() {
                   {nLeer > 0 && <span className="pill bg-bad">{nLeer} leer</span>}
                   {nKnapp > 0 && <span className="pill bg-warn">{nKnapp} Minimum</span>}
                   {l.demo && <span className="pill bg-[#2f5d7c]">Demo</span>}
+                  {wv && <span className="pill bg-[#7a5c9a]">Wiederverkäufer</span>}
                   {l.lat == null && !l.demo && <span className="pill bg-[#9a948a]">ohne Karte</span>}
                 </span>
                 <span className="flex-none text-3xl text-mut transition group-open/stelle:rotate-90" aria-hidden>›</span>
@@ -66,23 +70,43 @@ export default async function Verkaufsstellen() {
                   <div className="mt-0.5 flex flex-wrap gap-1 text-xs">
                     {l.demo ? <span className="pill bg-[#2f5d7c]">Demo: zählt nirgends</span> : l.lat == null ? <span className="pill bg-warn">kein Kartenpunkt</span> : l.oeffentlich ? <span className="pill bg-ok">auf der Karte</span> : <span className="pill bg-[#9a948a]">nicht öffentlich</span>}
                   </div>
-                  <div className="mt-2 break-all font-mono text-sm">{base.replace(/^https?:\/\//, "")}/kasse/{l.slug}</div>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    <LinkTeilen url={`${base}/kasse/${l.slug}`} name={l.name} />
-                    <KassenVorschau pfad={`/kasse/${l.slug}`} name={l.name} className="btn btn-ghost btn-sm">Kasse ansehen</KassenVorschau>
-                  </div>
+                  {wv ? (
+                    <div className="mt-2 rounded-lg bg-paper p-2">
+                      <div className="text-sm font-semibold">Nachbestell-Link (nur für den Wiederverkäufer, nicht aushängen)</div>
+                      {nbUrl(l) ? (
+                        <>
+                          <div className="mt-1 break-all font-mono text-xs">{nbUrl(l)!.replace(/^https?:\/\//, "")}</div>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            <LinkTeilen url={nbUrl(l)!} name={`Nachbestellen ${l.name}`} />
+                            <a href={nbUrl(l)!} target="_blank" className="btn btn-ghost btn-sm">Ansehen</a>
+                            <form action={nachbestellLink.bind(null, l.id)}><SendenKnopf arbeit="…" title="Der bisherige Link gilt danach nicht mehr">Neuen Link erzeugen</SendenKnopf></form>
+                          </div>
+                        </>
+                      ) : (
+                        <form action={nachbestellLink.bind(null, l.id)} className="mt-1"><SendenKnopf className="btn btn-or btn-sm" arbeit="…">Nachbestell-Link erzeugen</SendenKnopf></form>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-2 break-all font-mono text-sm">{base.replace(/^https?:\/\//, "")}/kasse/{l.slug}</div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <LinkTeilen url={`${base}/kasse/${l.slug}`} name={l.name} />
+                        <KassenVorschau pfad={`/kasse/${l.slug}`} name={l.name} className="btn btn-ghost btn-sm">Kasse ansehen</KassenVorschau>
+                      </div>
+                    </>
+                  )}
                   <div className="mt-1 flex flex-wrap gap-1">
                     <Link href={`/admin/verkaufsstellen/${l.id}`} className="btn btn-ghost btn-sm">Adresse und Partner bearbeiten</Link>
-                    <a href={`/admin/schild/${l.id}?download=1`} download className="btn btn-ghost btn-sm">Schild A4 (PDF)</a>
+                    {!wv && <a href={`/admin/schild/${l.id}?download=1`} download className="btn btn-ghost btn-sm">Schild A4 (PDF)</a>}
                   </div>
                 </div>
-                <span className="block h-24 w-24 flex-none rounded bg-paper" role="img" aria-label={`QR Code für ${l.name}`} dangerouslySetInnerHTML={{ __html: qr[l.id] }} />
+                {qr[l.id] && <span className="block h-24 w-24 flex-none rounded bg-paper" role="img" aria-label={`QR Code für ${l.name}`} dangerouslySetInnerHTML={{ __html: qr[l.id] }} />}
               </div>
-              <Zahlarten locationId={l.id} bar={l.bar_aktiv} paypal={l.paypal_aktiv} ueberweisung={l.ueberweisung_aktiv} ueMoeglich={ueMoeglich} />
+              {!wv && <Zahlarten locationId={l.id} bar={l.bar_aktiv} paypal={l.paypal_aktiv} ueberweisung={l.ueberweisung_aktiv} ueMoeglich={ueMoeglich} />}
               <details className="group mt-3 rounded-lg border border-line bg-paper">
                 <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 font-semibold [&::-webkit-details-marker]:hidden">
                   <span className="inline-block transition group-open:rotate-90" aria-hidden>›</span>
-                  Sortiment und Bestand
+                  {wv ? "Sortiment zum Nachbestellen" : "Sortiment und Bestand"}
                   <span className="text-sm font-normal text-mut">{l.location_products.length} Produkte</span>
                   <span className="ml-auto flex gap-1">
                     {(() => {
@@ -93,14 +117,14 @@ export default async function Verkaufsstellen() {
                   </span>
                 </summary>
                 <div className="border-t border-line px-3 pb-2">
-              <p className="mt-2 text-sm text-mut">Haken setzen, dann eintragen: Ist (was gerade da ist), Soll (was da sein soll) und „Warnen bei“ (ab dieser Menge oder weniger kommt eine Nachfüllmeldung). Speichert beim Verlassen des Feldes.</p>
+              {wv ? <p className="mt-2 text-sm text-mut">Haken setzen bei allem, was dieser Wiederverkäufer nachbestellen kann. Einen Bestand gibt es hier nicht.</p> : <p className="mt-2 text-sm text-mut">Haken setzen, dann eintragen: Ist (was gerade da ist), Soll (was da sein soll) und „Warnen bei“ (ab dieser Menge oder weniger kommt eine Nachfüllmeldung). Speichert beim Verlassen des Feldes.</p>}
               <div className="mt-1 flex flex-col">
                 {(prods ?? []).filter((p) => p.active || lp.has(p.id)).map((p) => {
                   const s = lp.get(p.id);
                   return (
                     <div key={p.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1">
                       <AssortToggle locationId={l.id} productId={p.id} name={produktLabel({ ...p, einheit: p.einheit as Einheit })} on={!!s} />
-                      {s && (
+                      {s && !wv && (
                         <span className="ml-auto flex flex-wrap items-center justify-end gap-1.5 text-sm text-mut">
                           {stufe(s.ist, s.warn) !== "gut" && <span className={`pill ${STUFE[stufe(s.ist, s.warn)].pill}`}>{STUFE[stufe(s.ist, s.warn)].t}</span>}
                           Ist <StockInput key={`ist-${s.ist}`} locationId={l.id} productId={p.id} field="ist" value={s.ist} label={`Istbestand ${produktLabel({ ...p, einheit: p.einheit as Einheit })}`} />
