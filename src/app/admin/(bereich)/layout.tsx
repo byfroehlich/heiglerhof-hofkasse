@@ -27,7 +27,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
           <form action={signOut}><button className="mt-1 text-or-d underline">Abmelden</button></form>
         </div>
       </aside>
-      <main className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-7">{children}</main>
+      <main className="min-w-0 flex-1 px-4 pt-5 pb-24 md:px-8 md:py-7">{children}</main>
       <LiveStand />
     </div>
   );

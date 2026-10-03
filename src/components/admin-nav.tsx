@@ -27,10 +27,7 @@ export function AdminNav({ leer, knapp }: { leer: number; knapp: number }) {
       </nav>
       <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
         {start ? <span className="text-xl font-bold">Hofkasse</span> : (
-          <>
-            <Link href="/admin" className="btn btn-ghost btn-sm flex-none">‹ Start</Link>
-            <span className="truncate text-lg font-semibold">{aktuell?.label}</span>
-          </>
+<span className="truncate text-lg font-semibold">{aktuell?.label}</span>
         )}
         {(leer > 0 || knapp > 0) && (
           <Link href="/admin/nachfuellen" className="ml-auto flex flex-none gap-1" aria-label="Warnungen">
@@ -39,6 +36,13 @@ export function AdminNav({ leer, knapp }: { leer: number; knapp: number }) {
           </Link>
         )}
       </div>
+      {/* Am Handy unten quer: mit dem Daumen erreichbar, statt oben links */}
+      {!start && (
+        <Link href="/admin" className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-center gap-2 border-t border-line bg-cream px-4 pt-3 text-lg font-semibold active:bg-orl md:hidden"
+          style={{ paddingBottom: "max(.75rem, env(safe-area-inset-bottom))" }}>
+          ‹ Zurück zum Start
+        </Link>
+      )}
     </>
   );
 }
