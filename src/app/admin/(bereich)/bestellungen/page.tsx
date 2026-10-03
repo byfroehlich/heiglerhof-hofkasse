@@ -31,7 +31,7 @@ export default async function Bestellungen({ searchParams }: PageProps<"/admin/b
   const orders = data ?? [];
   const month = new Date(); month.setDate(1); month.setHours(0, 0, 0, 0);
   const { data: m } = await db().from("orders").select("status, total_cents, locations!inner(demo)").eq("locations.demo", false).in("status", ["paid", "cash", "transfer_paid"]).gte("created_at", month.toISOString());
-  const { data: bestand } = await db().from("location_products").select("ist, soll, warn, locations!inner(name, active, demo), products!inner(name, zusatz, inhalt, einheit)").eq("locations.demo", false).eq("locations.active", true).returns<W[]>();
+  const { data: bestand } = await db().from("location_products").select("ist, soll, warn, locations!inner(name, active, demo, wiederverkaeufer), products!inner(name, zusatz, inhalt, einheit)").eq("locations.demo", false).eq("locations.wiederverkaeufer", false).eq("locations.active", true).returns<W[]>();
   const leer = (bestand ?? []).filter((r) => stufe(r.ist, r.warn) === "leer");
   const knapp = (bestand ?? []).filter((r) => stufe(r.ist, r.warn) === "knapp");
   const { count: offen } = await db().from("orders").select("id, locations!inner(demo)", { count: "exact", head: true }).eq("locations.demo", false).eq("status", "transfer");

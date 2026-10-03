@@ -56,6 +56,13 @@ describe("productSchema", () => {
     expect(productSchema.safeParse({ ...base, alkohol: "120" }).success).toBe(false);
     expect(productSchema.parse({ ...base, alkohol: "18,5" }).alkohol).toBe(18.5);
   });
+  it("Händlerpreis ist optional", () => {
+    expect(productSchema.parse(base).haendler).toBeNull();
+    expect(productSchema.parse({ ...base, haendler: "" }).haendler).toBeNull();
+    expect(productSchema.parse({ ...base, haendler: "4,20" }).haendler).toBe(420);
+    expect(productSchema.parse({ ...base, haendler: "4,20 €" }).haendler).toBe(420);
+    expect(productSchema.safeParse({ ...base, haendler: "vier" }).success).toBe(false);
+  });
 });
 
 describe("format", () => {

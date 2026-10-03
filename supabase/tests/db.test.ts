@@ -13,7 +13,7 @@ beforeAll(async () => {
   await db.exec(`create schema auth; create table auth.users(id uuid primary key);
     create schema storage; create table storage.buckets(id text primary key, name text, public bool, file_size_limit bigint, allowed_mime_types text[]);
     create role anon; create role authenticated;`);
-  for (const f of ["0001_init.sql", "0002_warnbestand.sql", "0003_warnstufen.sql", "0004_adressen_karte_partner.sql", "0005_zahlarten.sql", "0006_einstellungen.sql", "0007_push.sql", "0008_push_protokoll.sql", "0009_paypal_gebuehr.sql", "0010_kontakt.sql", "0011_storno_vorfuehrung.sql", "0012_demo_verkaufsstelle.sql"]) await db.exec(readFileSync(join(__dirname, "../migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_warnbestand.sql", "0003_warnstufen.sql", "0004_adressen_karte_partner.sql", "0005_zahlarten.sql", "0006_einstellungen.sql", "0007_push.sql", "0008_push_protokoll.sql", "0009_paypal_gebuehr.sql", "0010_kontakt.sql", "0011_storno_vorfuehrung.sql", "0012_demo_verkaufsstelle.sql", "0013_nachbestellung.sql"]) await db.exec(readFileSync(join(__dirname, "../migrations", f), "utf8"));
   loc = (await q<{ id: string }>(`insert into locations(slug,name,typ) values('alpenblick','Ferienwohnung Alpenblick','Ferienwohnung') returning id`))[0].id;
   bl = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents,alkohol_vol) values('Bierlikör',100,'ml',600,21.6) returning id`))[0].id;
   ho = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents) values('Honig',250,'g',650) returning id`))[0].id;
@@ -177,6 +177,28 @@ describe("Demo-Verkaufsstelle", () => {
     // Ein früherer Test legt einen Vorführ-Kauf an; die Migration ist wiederholbar und räumt ihn weg
     await db.exec(readFileSync(join(__dirname, "../migrations", "0012_demo_verkaufsstelle.sql"), "utf8"));
     expect((await q<{ n: number }>(`select count(*)::int n from orders where status='vorfuehrung'`))[0].n).toBe(0);
+  });
+});
+
+describe("Nachbestellung", () => {
+  const TOKEN = "abcdefghijklmnopqrstuvwxyz012345";
+  it("nur mit gültigem Link einer Wiederverkäufer-Stelle, nur Sortiment, Händlerpreis festgehalten", async () => {
+    const wv = (await q<{ id: string }>(`insert into locations(slug,name,typ,wiederverkaeufer,nachbestell_token) values('ladenwv','Dorfladen','Laden',true,$1) returning id`, [TOKEN]))[0].id;
+    await q(`insert into location_products(location_id,product_id,ist,soll,warn) values($1,$2,0,4,1)`, [wv, ho]);
+    await q(`update products set haendler_cents = 450 where id=$1`, [ho]);
+    const nb = (items: object[], token = TOKEN) => q<{ n_id: string; n_nr: number; n_stelle: string; n_summe: number }>(`select * from create_nachbestellung($1,$2::jsonb,'bis Freitag')`, [token, JSON.stringify(items)]);
+    const [r] = await nb([{ product_id: ho, menge: 6 }]);
+    expect(r.n_nr).toBe(1001);
+    expect(r.n_stelle).toBe("Dorfladen");
+    expect(r.n_summe).toBe(2700);
+    const [pos] = await q<{ name_snapshot: string; haendler_cents: number; menge: number }>(`select name_snapshot, haendler_cents, menge from nachbestell_positionen where nachbestellung_id=$1`, [r.n_id]);
+    expect(pos.name_snapshot).toMatch(/^Honig 250 g/);
+    expect(pos).toMatchObject({ haendler_cents: 450, menge: 6 });
+    await expect(nb([{ product_id: ho, menge: 1 }], "falsch-falsch-falsch-falsch-1234")).rejects.toThrow(/link ungueltig/);
+    await expect(nb([{ product_id: bl, menge: 1 }])).rejects.toThrow(/nicht verfuegbar/); // nicht im Sortiment
+    await expect(nb([{ product_id: ho, menge: 100 }])).rejects.toThrow();
+    await q(`update locations set wiederverkaeufer=false where id=$1`, [wv]);
+    await expect(nb([{ product_id: ho, menge: 1 }])).rejects.toThrow(/link ungueltig/);
   });
 });
 

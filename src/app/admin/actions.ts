@@ -11,6 +11,7 @@ import { bankdaten, ibanGueltig, ibanLesbar } from "@/lib/giro";
 import { hinweisMail } from "@/lib/notify";
 import { sendePush, vapid } from "@/lib/push";
 import { slugify } from "@/lib/format";
+import { neuerToken } from "@/lib/nachbestellung";
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -47,11 +48,11 @@ export async function saveProduct(_: FormState, form: FormData): Promise<FormSta
   const id = String(form.get("id") ?? "");
   const parsed = productSchema.safeParse({
     name: form.get("name"), zusatz: form.get("zusatz") ?? "", inhalt: form.get("inhalt"), einheit: form.get("einheit"),
-    price: form.get("price"), alkohol: form.get("alkohol") ?? "", farbe: form.get("farbe"),
+    price: form.get("price"), haendler: form.get("haendler") ?? "", alkohol: form.get("alkohol") ?? "", farbe: form.get("farbe"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Bitte Eingaben prüfen." };
   const p = parsed.data;
-  const row = { name: p.name, zusatz: p.zusatz, inhalt: p.inhalt, einheit: p.einheit, price_cents: p.price, alkohol_vol: p.alkohol, farbe: p.farbe };
+  const row = { name: p.name, zusatz: p.zusatz, inhalt: p.inhalt, einheit: p.einheit, price_cents: p.price, haendler_cents: p.haendler, alkohol_vol: p.alkohol, farbe: p.farbe };
 
   let productId = id;
   if (id) {
@@ -194,7 +195,7 @@ export async function saveLocation(_: FormState, form: FormData): Promise<FormSt
   const s = (k: string) => String(form.get(k) ?? "");
   const parsed = locationEditSchema.safeParse({
     name: s("name"), typ: s("typ"), ort: s("ort"), strasse: s("strasse"), plz: s("plz"), hinweis: s("hinweis"),
-    oeffentlich: form.get("oeffentlich") === "on", demo: form.get("demo") === "on", lat: s("lat"), lng: s("lng"), werbung_text: s("werbung_text"), werbung_link: s("werbung_link"),
+    oeffentlich: form.get("oeffentlich") === "on", demo: form.get("demo") === "on", wiederverkaeufer: form.get("wiederverkaeufer") === "on", lat: s("lat"), lng: s("lng"), werbung_text: s("werbung_text"), werbung_link: s("werbung_link"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Bitte Eingaben prüfen." };
   const d = parsed.data;
@@ -287,6 +288,27 @@ export async function stornieren(orderId: string, form: FormData) {
   revalidatePath("/admin", "layout");
 }
 
+// ---------- Nachbestellungen (Wiederverkäufer) ----------
+/** Nachbestell-Link erzeugen oder erneuern. Der alte Link gilt danach nicht mehr. */
+export async function nachbestellLink(locationId: string) {
+  await requireAdmin();
+  if (!/^[0-9a-f-]{36}$/.test(locationId)) return;
+  await db().from("locations").update({ nachbestell_token: neuerToken() }).eq("id", locationId).eq("wiederverkaeufer", true);
+  revalidatePath("/admin/verkaufsstellen");
+}
+
+export async function nachbestellStatus(id: string, status: "geliefert" | "erledigt" | "storniert" | "offen") {
+  await requireAdmin();
+  if (!/^[0-9a-f-]{36}$/.test(id) || !["geliefert", "erledigt", "storniert", "offen"].includes(status)) return;
+  const jetzt = new Date().toISOString();
+  const row: Record<string, unknown> = { status };
+  if (status === "geliefert") row.geliefert_am = jetzt;
+  if (status === "erledigt") row.erledigt_am = jetzt;
+  if (status === "offen") { row.geliefert_am = null; row.erledigt_am = null; }
+  await db().from("nachbestellungen").update(row).eq("id", id);
+  revalidatePath("/admin", "layout");
+}
+
 /** Ansprechpartner für Gäste: steht nach dem Kauf, auf der Karte und auf dem Verkaufsschild. */
 export async function saveKontakt(_: FormState, form: FormData): Promise<FormState> {
   const me = await requireAdmin();
@@ -349,15 +371,15 @@ export async function pushAbmelden(endpoint: string): Promise<void> {
   await db().from("push_abos").delete().eq("endpoint", endpoint);
 }
 
-export async function pushArten(endpoint: string): Promise<{ kauf: boolean; knapp: boolean; leer: boolean } | null> {
+export async function pushArten(endpoint: string): Promise<{ kauf: boolean; knapp: boolean; leer: boolean; nachbestellung: boolean } | null> {
   await requireAdmin();
-  const { data } = await db().from("push_abos").select("kauf, knapp, leer").eq("endpoint", endpoint).maybeSingle();
+  const { data } = await db().from("push_abos").select("kauf, knapp, leer, nachbestellung").eq("endpoint", endpoint).maybeSingle();
   return data;
 }
 
-export async function pushArtSetzen(endpoint: string, art: "kauf" | "knapp" | "leer", on: boolean): Promise<void> {
+export async function pushArtSetzen(endpoint: string, art: "kauf" | "knapp" | "leer" | "nachbestellung", on: boolean): Promise<void> {
   await requireAdmin();
-  if (!["kauf", "knapp", "leer"].includes(art)) return;
+  if (!["kauf", "knapp", "leer", "nachbestellung"].includes(art)) return;
   await db().from("push_abos").update({ [art]: on }).eq("endpoint", endpoint);
 }
 

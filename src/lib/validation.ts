@@ -31,6 +31,8 @@ export const productSchema = z.object({
   inhalt: z.coerce.number().int().min(1, "Inhalt fehlt").max(100000),
   einheit: z.enum(["g", "ml"]),
   price: euroCents,
+  // Händlerpreis für Wiederverkäufer, darf leer bleiben
+  haendler: z.string().default("").transform((v) => v.trim().replace(/\s*€$/, "")).pipe(z.union([z.literal("").transform(() => null), euroCents])),
   alkohol: z
     .string()
     .trim()
@@ -56,6 +58,7 @@ export const locationEditSchema = locationSchema.extend({
   hinweis: leerNull(200),
   oeffentlich: z.boolean(),
   demo: z.boolean(),
+  wiederverkaeufer: z.boolean(),
   lat: koord(-90, 90),
   lng: koord(-180, 180),
   werbung_text: leerNull(300),

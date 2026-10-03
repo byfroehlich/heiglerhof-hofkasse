@@ -6,7 +6,7 @@ import { grundpreisText, type Einheit } from "@/lib/format";
 
 export type EditorProduct = {
   id: string; name: string; zusatz: string; inhalt: number; einheit: Einheit;
-  price: string; alkohol: string; farbe: string; foto: string | null;
+  price: string; haendler: string; alkohol: string; farbe: string; foto: string | null;
 };
 
 const OUT = 800; // Kantenlänge des fertigen Fotos in Pixeln
@@ -99,6 +99,7 @@ export function ProductEditor({ product }: { product: EditorProduct }) {
           <label className="field">Einheit<select name="einheit" value={einheit} onChange={(e) => setEinheit(e.target.value as Einheit)}><option value="g">g</option><option value="ml">ml</option></select></label>
           <label className="field">Preis €<input name="price" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} required /></label>
         </div>
+        <label className="field">Händlerpreis € (für Wiederverkäufer, darf leer bleiben)<input name="haendler" inputMode="decimal" defaultValue={product.haendler} placeholder="z. B. 4,20" /></label>
         <div className="grid grid-cols-2 gap-3">
           <label className="field">Alkohol % vol<input name="alkohol" inputMode="decimal" defaultValue={product.alkohol} placeholder="leer = ohne" /></label>
           <label className="field">Farbe ohne Foto<input name="farbe" type="color" defaultValue={product.farbe} className="h-11 p-1" /></label>

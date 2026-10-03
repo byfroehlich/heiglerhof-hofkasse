@@ -5,11 +5,11 @@ import { db, fotoUrl } from "@/lib/supabase";
 import { eur, grundpreisText, inhaltText, alkoholText, type Einheit } from "@/lib/format";
 import { setProductActive } from "../../actions";
 
-type P = { id: string; name: string; zusatz: string | null; inhalt: number; einheit: Einheit; price_cents: number; alkohol_vol: number | null; farbe: string; foto_path: string | null; active: boolean };
+type P = { id: string; name: string; zusatz: string | null; inhalt: number; einheit: Einheit; price_cents: number; haendler_cents: number | null; alkohol_vol: number | null; farbe: string; foto_path: string | null; active: boolean };
 
 export default async function Produkte({ searchParams }: PageProps<"/admin/produkte">) {
   const ok = (await searchParams).gespeichert;
-  const { data } = await db().from("products").select("id, name, zusatz, inhalt, einheit, price_cents, alkohol_vol, farbe, foto_path, active").order("name").returns<P[]>();
+  const { data } = await db().from("products").select("id, name, zusatz, inhalt, einheit, price_cents, haendler_cents, alkohol_vol, farbe, foto_path, active").order("name").returns<P[]>();
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -33,7 +33,7 @@ export default async function Produkte({ searchParams }: PageProps<"/admin/produ
                     </span>
                   </td>
                   <td className="p-2">{inhaltText(p.inhalt, p.einheit)}</td>
-                  <td className="p-2 text-right">{eur(p.price_cents)}</td>
+                  <td className="p-2 text-right">{eur(p.price_cents)}{p.haendler_cents != null && <div className="text-xs text-mut">Händler {eur(p.haendler_cents)}</div>}</td>
                   <td className="p-2 text-right">{grundpreisText(p.price_cents, p.inhalt, p.einheit)}</td>
                   <td className="p-2">{alkoholText(p.alkohol_vol == null ? null : Number(p.alkohol_vol)) ?? "nein"}</td>
                   <td className="p-2">

@@ -6,7 +6,7 @@ import { PinKarte } from "./karte";
 
 export type EditorLocation = {
   id: string; name: string; typ: string; strasse: string; plz: string; ort: string; hinweis: string;
-  oeffentlich: boolean; demo: boolean; lat: number | null; lng: number | null;
+  oeffentlich: boolean; demo: boolean; wiederverkaeufer: boolean; lat: number | null; lng: number | null;
   logo: string | null; werbung_bild: string | null; werbung_text: string; werbung_link: string;
 };
 
@@ -104,6 +104,10 @@ export function LocationEditor({ l }: { l: EditorLocation }) {
         <label className="flex items-start gap-3 md:col-span-2">
           <input type="checkbox" name="demo" defaultChecked={l.demo} className="mt-1 h-5 w-5 flex-none accent-[var(--or)]" />
           <span><b>Demo-Verkaufsstelle</b><br /><span className="text-sm text-mut">Zum Zeigen und Ausprobieren, der Link darf weitergegeben werden. Käufe hier zählen nirgends: nicht im Umsatz, nicht in der Abrechnung, keine Nachfüllwarnungen, nicht auf der Karte. PayPal hier besser ausschalten, dort fließt echtes Geld.</span></span>
+        </label>
+        <label className="flex items-start gap-3 md:col-span-2">
+          <input type="checkbox" name="wiederverkaeufer" defaultChecked={l.wiederverkaeufer} className="mt-1 h-5 w-5 flex-none accent-[var(--or)]" />
+          <span><b>Wiederverkäufer</b><br /><span className="text-sm text-mut">Kauft bei euch auf Rechnung und verkauft selbst. Keine Kundenkasse und kein Bestand in der App, dafür ein eigener Nachbestell-Link (unter Verkaufsstellen).</span></span>
         </label>
         <label className="field md:col-span-2">Hinweis für die Karte<input name="hinweis" defaultValue={l.hinweis} maxLength={200} placeholder="z. B. rund um die Uhr, an der Rezeption fragen" /></label>
       </section>

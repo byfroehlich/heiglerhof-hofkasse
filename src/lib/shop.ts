@@ -31,6 +31,7 @@ export async function loadShop(slug: string): Promise<{ location: Location; part
     .select("id, slug, name, typ, ort, bar_aktiv, paypal_aktiv, ueberweisung_aktiv, logo_path, werbung_bild, werbung_text, werbung_link")
     .eq("slug", slug)
     .eq("active", true)
+    .eq("wiederverkaeufer", false) // Wiederverkäufer verkaufen selbst, ohne Hofkasse
     .maybeSingle<Omit<Location, "bar" | "paypal" | "ueberweisung"> & { bar_aktiv: boolean; paypal_aktiv: boolean; ueberweisung_aktiv: boolean; logo_path: string | null; werbung_bild: string | null; werbung_text: string | null; werbung_link: string | null }>();
   if (locError) throw locError;
   if (!loc) return null;

@@ -31,7 +31,7 @@ function geraetName() {
 export function AppUndPush() {
   const [lage, setLage] = useState<Lage>("pruefen");
   const [endpoint, setEndpoint] = useState<string | null>(null);
-  const [arten, setArten] = useState({ kauf: true, knapp: true, leer: true });
+  const [arten, setArten] = useState({ kauf: true, knapp: true, leer: true, nachbestellung: true });
   const [msg, setMsg] = useState<string | null>(null);
   const [install, setInstall] = useState<InstallEvent | null>(null);
   const [standalone, setStandalone] = useState(false);
@@ -71,7 +71,7 @@ export function AppUndPush() {
     const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToUint8(key) }));
     const r = await pushAnmelden(sub.toJSON(), geraetName());
     if (r?.error) { setMsg(r.error); return; }
-    setEndpoint(sub.endpoint); setLage("an"); setArten({ kauf: true, knapp: true, leer: true });
+    setEndpoint(sub.endpoint); setLage("an"); setArten({ kauf: true, knapp: true, leer: true, nachbestellung: true });
     setMsg("Eingeschaltet. Eine Probe-Mitteilung ist unterwegs.");
   });
 
@@ -110,7 +110,7 @@ export function AppUndPush() {
           <>
             <p className="text-ok">✓ Eingeschaltet. Meldungen kommen bei:</p>
             <div className="mt-2 flex flex-col gap-2">
-              {([["kauf", "jedem Kauf"], ["knapp", "Minimum erreicht (gelb)"], ["leer", "leer (rot)"]] as const).map(([k, t]) => (
+              {([["kauf", "jedem Kauf"], ["knapp", "Minimum erreicht (gelb)"], ["leer", "leer (rot)"], ["nachbestellung", "Nachbestellung eines Wiederverkäufers"]] as const).map(([k, t]) => (
                 <label key={k} className="flex items-center gap-3">
                   <input type="checkbox" className="h-5 w-5 accent-[var(--or)]" checked={arten[k]} disabled={pending}
                     onChange={(e) => { const v = e.target.checked; setArten((a) => ({ ...a, [k]: v })); start(() => pushArtSetzen(endpoint, k, v)); }} />
