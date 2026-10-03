@@ -47,7 +47,7 @@ export async function GET(req: Request) {
   // Sind alle SQL-Schritte in der Datenbank angekommen? (je Schritt eine Spalte, die er anlegt)
   const schritte: [string, string, string][] = [
     ["0002", "location_products", "warn"], ["0003", "stock_alerts", "stufe"], ["0004", "locations", "lat"],
-    ["0005", "locations", "ueberweisung_aktiv"], ["0006", "einstellungen", "iban"], ["0007", "push_abos", "endpoint"], ["0008", "push_protokoll", "zeit"], ["0009", "orders", "gebuehr_cents"], ["0010", "einstellungen", "kontakt_telefon"], ["0011", "orders", "storno_grund"], ["0012", "locations", "demo"], ["0013", "nachbestellungen", "nr"],
+    ["0005", "locations", "ueberweisung_aktiv"], ["0006", "einstellungen", "iban"], ["0007", "push_abos", "endpoint"], ["0008", "push_protokoll", "zeit"], ["0009", "orders", "gebuehr_cents"], ["0010", "einstellungen", "kontakt_telefon"], ["0011", "orders", "storno_grund"], ["0012", "locations", "demo"], ["0013", "nachbestellungen", "nr"], ["0014", "einstellungen", "menu_reihenfolge"],
   ];
   let migrationen: string[] | string = "nicht geprüft";
   let ungebucht: number | string = "nicht geprüft";

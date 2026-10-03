@@ -12,6 +12,7 @@ import { hinweisMail } from "@/lib/notify";
 import { sendePush, vapid } from "@/lib/push";
 import { slugify } from "@/lib/format";
 import { neuerToken } from "@/lib/nachbestellung";
+import { MENU } from "@/lib/menu";
 
 export type FormState = { error?: string; ok?: string } | undefined;
 
@@ -306,6 +307,15 @@ export async function nachbestellStatus(id: string, status: "geliefert" | "erled
   if (status === "erledigt") row.erledigt_am = jetzt;
   if (status === "offen") { row.geliefert_am = null; row.erledigt_am = null; }
   await db().from("nachbestellungen").update(row).eq("id", id);
+  revalidatePath("/admin", "layout");
+}
+
+/** Reihenfolge der Bereiche (Startbildschirm und Seitenleiste). Nur bekannte Pfade werden gespeichert. */
+export async function menuSpeichern(hrefs: string[]) {
+  await requireAdmin();
+  const erlaubt = new Set<string>(MENU.map((m) => m.href));
+  const liste = [...new Set(hrefs)].filter((h) => erlaubt.has(h));
+  await db().from("einstellungen").update({ menu_reihenfolge: liste }).eq("id", 1);
   revalidatePath("/admin", "layout");
 }
 

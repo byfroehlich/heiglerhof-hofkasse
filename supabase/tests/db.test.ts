@@ -13,7 +13,7 @@ beforeAll(async () => {
   await db.exec(`create schema auth; create table auth.users(id uuid primary key);
     create schema storage; create table storage.buckets(id text primary key, name text, public bool, file_size_limit bigint, allowed_mime_types text[]);
     create role anon; create role authenticated;`);
-  for (const f of ["0001_init.sql", "0002_warnbestand.sql", "0003_warnstufen.sql", "0004_adressen_karte_partner.sql", "0005_zahlarten.sql", "0006_einstellungen.sql", "0007_push.sql", "0008_push_protokoll.sql", "0009_paypal_gebuehr.sql", "0010_kontakt.sql", "0011_storno_vorfuehrung.sql", "0012_demo_verkaufsstelle.sql", "0013_nachbestellung.sql"]) await db.exec(readFileSync(join(__dirname, "../migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_warnbestand.sql", "0003_warnstufen.sql", "0004_adressen_karte_partner.sql", "0005_zahlarten.sql", "0006_einstellungen.sql", "0007_push.sql", "0008_push_protokoll.sql", "0009_paypal_gebuehr.sql", "0010_kontakt.sql", "0011_storno_vorfuehrung.sql", "0012_demo_verkaufsstelle.sql", "0013_nachbestellung.sql", "0014_menu_reihenfolge.sql"]) await db.exec(readFileSync(join(__dirname, "../migrations", f), "utf8"));
   loc = (await q<{ id: string }>(`insert into locations(slug,name,typ) values('alpenblick','Ferienwohnung Alpenblick','Ferienwohnung') returning id`))[0].id;
   bl = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents,alkohol_vol) values('Bierlikör',100,'ml',600,21.6) returning id`))[0].id;
   ho = (await q<{ id: string }>(`insert into products(name,inhalt,einheit,price_cents) values('Honig',250,'g',650) returning id`))[0].id;
